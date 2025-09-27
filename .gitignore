@@ -1,1 +1,4 @@
 .venv/
+*.wav
+*.mid
+__pycache__/
