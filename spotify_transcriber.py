@@ -19,7 +19,7 @@ import noisereduce as nr
 import librosa
 
 class AudioToMIDITranscriber:
-    def __init__(self, sample_rate=48000, chunk_size=1024, channels=1):
+    def __init__(self, sample_rate=44100, chunk_size=1024, channels=1):
         """
         Initialize the transcriber with audio parameters
         
@@ -164,9 +164,9 @@ class AudioToMIDITranscriber:
         if hasattr(midi_data, 'instruments'):
             for instrument in midi_data.instruments:
                 for note in instrument.notes:
-                    # Boost velocity by 200% (3x original), but cap at 127 (MIDI max)
+                    # Boost velocity by 100% (2x original), but cap at 127 (MIDI max)
                     original_velocity = note.velocity
-                    boosted_velocity = 127
+                    boosted_velocity = min(127, int(original_velocity * 2))
                     note.velocity = boosted_velocity
                     
                     note_events.append({
@@ -229,20 +229,95 @@ class AudioToMIDITranscriber:
             # Step 2: Reduce noise
             noise_reduced_file = self.reduce_noise(audio_file)
             
-            # Step 3: Detect pitches
-            midi_data, note_events = self.detect_pitches(noise_reduced_file)
+            # Step 3: Detect pitches from both original and noise-reduced files
+            print("\n=== Processing Original Audio ===")
+            midi_data_original, note_events_original = self.detect_pitches(audio_file)
             
-            # Step 4: Save MIDI
+            print("\n=== Processing Noise-Reduced Audio ===")
+            midi_data_clean, note_events_clean = self.detect_pitches(noise_reduced_file)
+            
+            # Step 4: Save MIDI files for both versions
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
             if output_midi is None:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output_midi = f"transcription_{timestamp}.mid"
+                original_midi = f"transcription_original_{timestamp}.mid"
+                clean_midi = f"transcription_clean_{timestamp}.mid"
+            else:
+                base_name = os.path.splitext(output_midi)[0]
+                original_midi = f"{base_name}_original.mid"
+                clean_midi = f"{base_name}_clean.mid"
             
-            self.save_midi(midi_data, output_midi)
+            print(f"\n=== Saving MIDI Files ===")
+            self.save_midi(midi_data_original, original_midi)
+            self.save_midi(midi_data_clean, clean_midi)
             
-            # Keep the audio file in the current directory
-            print(f"Audio file saved: {audio_file}")
+            # Print comparison summary
+            print(f"\n=== Transcription Summary ===")
+            print(f"Original audio: {audio_file}")
+            print(f"Noise-reduced audio: {noise_reduced_file}")
+            print(f"Original MIDI: {original_midi} ({len(note_events_original)} notes)")
+            print(f"Clean MIDI: {clean_midi} ({len(note_events_clean)} notes)")
             
-            return output_midi
+            return [original_midi, clean_midi]
+            
+        except Exception as e:
+            print(f"Error during transcription: {e}")
+            return None
+        finally:
+            self.cleanup()
+    
+    def transcribe_file(self, audio_file, output_midi=None):
+        """
+        Transcribe an existing audio file to MIDI (both original and noise-reduced versions)
+        
+        Args:
+            audio_file (str): Path to existing audio file
+            output_midi (str): Base path for output MIDI files (optional)
+            
+        Returns:
+            list: Paths to generated MIDI files [original_midi, clean_midi]
+        """
+        if not os.path.exists(audio_file):
+            print(f"Error: {audio_file} not found!")
+            return None
+            
+        try:
+            print(f"Processing existing audio file: {audio_file}")
+            
+            # Step 1: Reduce noise
+            noise_reduced_file = self.reduce_noise(audio_file)
+            
+            # Step 2: Detect pitches from both original and noise-reduced files
+            print("\n=== Processing Original Audio ===")
+            midi_data_original, note_events_original = self.detect_pitches(audio_file)
+            
+            print("\n=== Processing Noise-Reduced Audio ===")
+            midi_data_clean, note_events_clean = self.detect_pitches(noise_reduced_file)
+            
+            # Step 3: Save MIDI files for both versions
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = os.path.splitext(os.path.basename(audio_file))[0]
+            
+            if output_midi is None:
+                original_midi = f"{base_name}_original_{timestamp}.mid"
+                clean_midi = f"{base_name}_clean_{timestamp}.mid"
+            else:
+                base_output = os.path.splitext(output_midi)[0]
+                original_midi = f"{base_output}_original.mid"
+                clean_midi = f"{base_output}_clean.mid"
+            
+            print(f"\n=== Saving MIDI Files ===")
+            self.save_midi(midi_data_original, original_midi)
+            self.save_midi(midi_data_clean, clean_midi)
+            
+            # Print comparison summary
+            print(f"\n=== Transcription Summary ===")
+            print(f"Original audio: {audio_file}")
+            print(f"Noise-reduced audio: {noise_reduced_file}")
+            print(f"Original MIDI: {original_midi} ({len(note_events_original)} notes)")
+            print(f"Clean MIDI: {clean_midi} ({len(note_events_clean)} notes)")
+            
+            return [original_midi, clean_midi]
             
         except Exception as e:
             print(f"Error during transcription: {e}")
@@ -257,14 +332,15 @@ def main():
                        help="Recording duration in seconds (default: 10)")
     parser.add_argument("--output", "-o", type=str, 
                        help="Output MIDI file path (default: auto-generated)")
-    parser.add_argument("--sample-rate", "-r", type=int, default=48000,
-                       help="Audio sample rate (default: 48000)")
+    parser.add_argument("--sample-rate", "-r", type=int, default=44100,
+                       help="Audio sample rate (default: 44100)")
+    parser.add_argument("--file", "-f", type=str,
+                       help="Process existing audio file instead of recording")
     
     args = parser.parse_args()
     
     print("=== Audio to MIDI Transcriber ===")
     print("Using basic-pitch for pitch detection")
-    print(f"Recording duration: {args.duration} seconds")
     print(f"Sample rate: {args.sample_rate} Hz")
     print()
     
@@ -272,14 +348,26 @@ def main():
     transcriber = AudioToMIDITranscriber(sample_rate=args.sample_rate)
     
     try:
-        # Perform transcription
-        output_file = transcriber.transcribe_live(
-            duration=args.duration,
-            output_midi=args.output
-        )
+        if args.file:
+            # Process existing file
+            print(f"Processing file: {args.file}")
+            output_files = transcriber.transcribe_file(
+                audio_file=args.file,
+                output_midi=args.output
+            )
+        else:
+            # Record and process
+            print(f"Recording duration: {args.duration} seconds")
+            output_files = transcriber.transcribe_live(
+                duration=args.duration,
+                output_midi=args.output
+            )
         
-        if output_file:
-            print(f"\n✅ Transcription complete! MIDI file: {output_file}")
+        if output_files:
+            print(f"\n✅ Transcription complete!")
+            print(f"Generated MIDI files:")
+            for i, file in enumerate(output_files):
+                print(f"  {i+1}. {file}")
         else:
             print("\n❌ Transcription failed!")
             
