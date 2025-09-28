@@ -7,6 +7,7 @@ Integrates all audio processing functionality from the existing scripts.
 import os
 import shutil
 import tempfile
+import requests
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -36,8 +37,8 @@ MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB max file size
 PORT = 3001
 
 # Vercel blob storage configuration
-VERCEL_BLOB_READ_WRITE_TOKEN = os.getenv('VERCEL_BLOB_READ_WRITE_TOKEN')
-VERCEL_BLOB_BASE_URL = os.getenv('VERCEL_BLOB_BASE_URL')
+VERCEL_BLOB_READ_WRITE_TOKEN = os.getenv('VERCEL_BLOB_READ_WRITE_TOKEN', 'vercel_blob_rw_Ny9jzcJeQEq6rfQQ_y3TEv1ypf9JzmNmdh62hT4bOYEh4bO')
+VERCEL_BLOB_BASE_URL = os.getenv('VERCEL_BLOB_BASE_URL', 'https://ny9jzcjeqeq6rfqq.public.blob.vercel-storage.com')
 
 # Set the Vercel blob token for the library
 os.environ['BLOB_READ_WRITE_TOKEN'] = VERCEL_BLOB_READ_WRITE_TOKEN
@@ -68,28 +69,49 @@ def health_check():
 def transcribe_single():
     """
     Route for spotify_transcriber.py functionality - single audio file to MIDI conversion
-    Uploads generated MIDI files to Vercel blob storage and returns blob URLs
+    Expects a JSON payload with audioUrl pointing to a Vercel blob storage URL
+    Downloads the audio, converts to MIDI, and returns the MIDI file directly
     """
     temp_audio_path = None
+    midi_files_to_cleanup = []
+    
     try:
-        if 'audio' not in request.files:
-            return jsonify({'error': 'No audio file provided'}), 400
+        # Get JSON payload
+        data = request.get_json()
+        if not data or 'audioUrl' not in data:
+            return jsonify({'error': 'No audioUrl provided in request body'}), 400
         
-        audio_file = request.files['audio']
+        audio_url = data['audioUrl']
         
-        if audio_file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+        print(f"Processing audio from URL: {audio_url}")
         
-        if not allowed_file(audio_file.filename):
-            return jsonify({'error': 'File type not allowed. Use WAV, MP3, FLAC, or M4A'}), 400
-        
-        # Save the uploaded file temporarily for processing
+        # Download the audio file from the blob URL
         timestamp = int(time.time() * 1000)
-        filename = secure_filename(audio_file.filename)
-        temp_audio_path = os.path.join(tempfile.gettempdir(), f"{timestamp}_{filename}")
-        audio_file.save(temp_audio_path)
         
-        print(f"Processing single audio file: {filename}")
+        try:
+            print("Downloading audio file from blob storage...")
+            response = requests.get(audio_url, timeout=30)
+            response.raise_for_status()
+            
+            # Determine file extension from URL or content-type
+            file_extension = '.wav'  # Default
+            if audio_url.lower().endswith(('.mp3', '.wav', '.flac', '.m4a')):
+                file_extension = audio_url[audio_url.rfind('.'):].lower()
+            
+            # Save to temporary file
+            temp_audio_path = os.path.join(tempfile.gettempdir(), f"{timestamp}_audio{file_extension}")
+            
+            with open(temp_audio_path, 'wb') as f:
+                f.write(response.content)
+            
+            print(f"Downloaded audio file: {len(response.content)} bytes")
+            
+        except requests.exceptions.RequestException as e:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to download audio file from URL',
+                'details': str(e)
+            }), 400
         
         # Create transcriber and process the file
         transcriber = AudioToMIDITranscriber()
@@ -99,50 +121,24 @@ def transcribe_single():
             output_files = transcriber.transcribe_file(temp_audio_path)
             
             if output_files and len(output_files) > 0:
-                # Upload MIDI files to Vercel blob storage
-                blob_urls = []
-                blob_files = []
+                # Use the clean MIDI file (second one) if available, otherwise use the first
+                primary_midi_file = output_files[1] if len(output_files) > 1 else output_files[0]
+                midi_files_to_cleanup = output_files
                 
-                for i, midi_file in enumerate(output_files):
-                    if os.path.exists(midi_file):
-                        # Read the MIDI file
-                        with open(midi_file, 'rb') as f:
-                            midi_data = f.read()
-                        
-                        # Create a unique filename for blob storage
-                        midi_basename = os.path.basename(midi_file)
-                        blob_filename = f"transcriptions/{timestamp}_{midi_basename}"
-                        
-                        # Upload to Vercel blob storage
-                        print(f"Uploading {midi_basename} to blob storage...")
-                        blob_response = put(blob_filename, midi_data)
-                        
-                        blob_url = blob_response.get('url')
-                        if blob_url:
-                            blob_urls.append(blob_url)
-                            blob_files.append(blob_filename)
-                            print(f"Successfully uploaded: {blob_url}")
-                        
-                        # Clean up temporary MIDI file
-                        os.remove(midi_file)
-                
-                if blob_urls:
-                    return jsonify({
-                        'success': True,
-                        'message': 'Single audio transcription completed successfully',
-                        'inputFile': filename,
-                        'midiFiles': blob_files,
-                        'midiUrls': blob_urls,
-                        'originalMidiUrl': blob_urls[0] if len(blob_urls) > 0 else None,
-                        'cleanMidiUrl': blob_urls[1] if len(blob_urls) > 1 else None,
-                        # Keep original format for compatibility
-                        'originalMidi': blob_files[0] if len(blob_files) > 0 else None,
-                        'cleanMidi': blob_files[1] if len(blob_files) > 1 else None
-                    })
+                if os.path.exists(primary_midi_file):
+                    print(f"Returning MIDI file: {primary_midi_file}")
+                    
+                    # Return the MIDI file directly as a downloadable file
+                    return send_file(
+                        primary_midi_file,
+                        as_attachment=True,
+                        download_name=f"transcribed_{timestamp}.mid",
+                        mimetype='audio/midi'
+                    )
                 else:
                     return jsonify({
                         'success': False,
-                        'error': 'Failed to upload MIDI files to blob storage'
+                        'error': 'Generated MIDI file not found'
                     }), 500
             else:
                 return jsonify({
@@ -168,12 +164,22 @@ def transcribe_single():
             'details': str(e)
         }), 500
     finally:
-        # Clean up temporary audio file
+        # Clean up temporary files
         if temp_audio_path and os.path.exists(temp_audio_path):
             try:
                 os.remove(temp_audio_path)
+                print(f"Cleaned up temporary audio file: {temp_audio_path}")
             except Exception as e:
-                print(f"Warning: Could not remove temporary file {temp_audio_path}: {e}")
+                print(f"Warning: Could not remove temporary audio file {temp_audio_path}: {e}")
+        
+        # Clean up MIDI files after sending
+        for midi_file in midi_files_to_cleanup:
+            if os.path.exists(midi_file):
+                try:
+                    os.remove(midi_file)
+                    print(f"Cleaned up MIDI file: {midi_file}")
+                except Exception as e:
+                    print(f"Warning: Could not remove MIDI file {midi_file}: {e}")
 
 
 
