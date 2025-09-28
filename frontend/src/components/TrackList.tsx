@@ -87,7 +87,7 @@ const TrackList: React.FC<TrackListProps> = ({ onMidiFilesChange }) => {
       </div>
 
       {tracks.length === 0 ? (
-        <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
+        <div className="text-center py-12 bg-gray-800/20 backdrop-blur-sm border border-gray-700/30 rounded-lg">
           <div className="text-blue-400 mb-4">
             <svg 
               width="48" 
@@ -140,7 +140,7 @@ const TrackList: React.FC<TrackListProps> = ({ onMidiFilesChange }) => {
 
       {midiFiles.length > 0 && (
         <div 
-          className={`mt-8 p-4 bg-gray-800 border border-gray-700 rounded-lg transition-all duration-800 ${
+          className={`mt-8 p-4 bg-gray-800/20 backdrop-blur-sm border border-gray-700/30 rounded-lg transition-all duration-800 ${
             isVisible 
               ? 'opacity-100 transform translate-y-0' 
               : 'opacity-0 transform translate-y-8'

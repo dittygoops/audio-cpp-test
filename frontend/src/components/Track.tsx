@@ -86,7 +86,7 @@ const Track: React.FC<TrackProps> = ({
 
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-sm">
+    <div className="bg-gray-800/20 backdrop-blur-sm border border-gray-700/30 rounded-lg p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-white">
           Track {trackNumber}
