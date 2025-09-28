@@ -4,6 +4,7 @@ import { Midi } from '@tonejs/midi';
 
 interface MidiPlayerProps {
   midiPath?: string;
+  instrument?: string; // The instrument value (e.g., '0', '24', '32')
   onPlay?: () => void;
   onPause?: () => void;
   onStop?: () => void;
@@ -12,6 +13,7 @@ interface MidiPlayerProps {
 
 const MidiPlayer: React.FC<MidiPlayerProps> = ({
   midiPath,
+  instrument = '0',
   onPlay,
   onPause,
   onStop,
@@ -24,27 +26,296 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const synthRef = useRef<Tone.PolySynth | null>(null);
+  const synthRef = useRef<Tone.PolySynth | Tone.NoiseSynth | null>(null);
   const midiRef = useRef<Midi | null>(null);
   const intervalRef = useRef<number | null>(null);
   const isInitializedRef = useRef(false);
 
-  // Initialize Tone.js synth
+// Get instrument-specific synthesizer configuration
+const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.NoiseSynth => {
+  switch (instrumentValue) {
+    case '0': // Piano - Rich harmonics with quick attack
+      return new Tone.PolySynth(Tone.Synth, {
+        oscillator: { 
+          type: "fatsawtooth",
+          spread: 20
+        },
+        envelope: { 
+          attack: 0.005, 
+          decay: 0.3, 
+          sustain: 0.2, 
+          release: 2.0 
+        },
+        filter: {
+          frequency: 3000,
+          type: "lowpass"
+        }
+      }).toDestination();
+    
+    case '24': // Guitar - Plucky attack with harmonic richness
+      return new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 2.5,
+        modulationIndex: 15,
+        envelope: { 
+          attack: 0.002, 
+          decay: 0.8, 
+          sustain: 0.05, 
+          release: 1.2 
+        },
+        modulation: { 
+          type: "triangle" 
+        },
+        modulationEnvelope: {
+          attack: 0.01,
+          decay: 0.5,
+          sustain: 0.1,
+          release: 0.5
+        }
+      }).toDestination();
+    
+    case '32': // Bass - Deep, punchy low frequencies
+      return new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 1,
+        modulationIndex: 3,
+        envelope: { 
+          attack: 0.01, 
+          decay: 0.4, 
+          sustain: 0.8, 
+          release: 1.5 
+        },
+        modulation: { 
+          type: "square" 
+        },
+        filter: {
+          frequency: 800,
+          type: "lowpass"
+        }
+      }).toDestination();
+    
+    case '128': // Drums - Noise-based with sharp attack
+      return new Tone.NoiseSynth({
+        noise: { 
+          type: "brown",
+          fadeIn: 0,
+          fadeOut: 0.01
+        },
+        envelope: { 
+          attack: 0.001, 
+          decay: 0.15, 
+          sustain: 0.0,
+          release: 0.1
+        },
+        filter: {
+          frequency: 2000,
+          type: "highpass"
+        }
+      }).toDestination();
+    
+    case '40': // Violin - Bowed string characteristics
+      return new Tone.PolySynth(Tone.AMSynth, {
+        harmonicity: 3,
+        oscillator: { 
+          type: "sawtooth" 
+        },
+        envelope: { 
+          attack: 0.2, 
+          decay: 0.1, 
+          sustain: 0.9, 
+          release: 0.8 
+        },
+        modulation: {
+          type: "sine",
+          frequency: 6
+        },
+        modulationEnvelope: {
+          attack: 0.3,
+          decay: 0.2,
+          sustain: 0.8,
+          release: 0.5
+        }
+      }).toDestination();
+    
+    case '42': // Cello - Lower, warmer bowed string
+      return new Tone.PolySynth(Tone.AMSynth, {
+        harmonicity: 2,
+        oscillator: { 
+          type: "sawtooth" 
+        },
+        envelope: { 
+          attack: 0.3, 
+          decay: 0.2, 
+          sustain: 0.85, 
+          release: 1.2 
+        },
+        modulation: {
+          type: "sine",
+          frequency: 4
+        },
+        modulationEnvelope: {
+          attack: 0.4,
+          decay: 0.3,
+          sustain: 0.7,
+          release: 0.8
+        },
+        filter: {
+          frequency: 1500,
+          type: "lowpass"
+        }
+      }).toDestination();
+    
+    case '56': // Trumpet - Bright brass with slight buzz
+      return new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 4,
+        modulationIndex: 8,
+        envelope: { 
+          attack: 0.05, 
+          decay: 0.2, 
+          sustain: 0.7, 
+          release: 0.6 
+        },
+        modulation: { 
+          type: "square" 
+        },
+        modulationEnvelope: {
+          attack: 0.1,
+          decay: 0.3,
+          sustain: 0.6,
+          release: 0.4
+        },
+        filter: {
+          frequency: 4000,
+          type: "highpass",
+          Q: 2
+        }
+      }).toDestination();
+    
+    case '64': // Saxophone - Reedy brass sound
+      return new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 2.5,
+        modulationIndex: 12,
+        envelope: { 
+          attack: 0.08, 
+          decay: 0.3, 
+          sustain: 0.6, 
+          release: 0.8 
+        },
+        modulation: { 
+          type: "sawtooth" 
+        },
+        modulationEnvelope: {
+          attack: 0.1,
+          decay: 0.4,
+          sustain: 0.5,
+          release: 0.6
+        },
+        filter: {
+          frequency: 2500,
+          type: "bandpass",
+          Q: 3
+        }
+      }).toDestination();
+    
+    case '73': // Flute - Pure, breathy tone
+      return new Tone.PolySynth(Tone.Synth, {
+        oscillator: { 
+          type: "sine",
+          harmonicity: 1.5
+        },
+        envelope: { 
+          attack: 0.1, 
+          decay: 0.2, 
+          sustain: 0.6, 
+          release: 0.8 
+        },
+        filter: {
+          frequency: 3500,
+          type: "lowpass",
+          rolloff: -12
+        },
+        filterEnvelope: {
+          attack: 0.2,
+          decay: 0.3,
+          sustain: 0.8,
+          release: 1.0,
+          baseFrequency: 2000,
+          octaves: 2
+        }
+      }).toDestination();
+    
+    case '16': // Organ - Sustained harmonic-rich sound
+      return new Tone.PolySynth(Tone.FatOscillator, {
+        type: "square",
+        spread: 40,
+        count: 4,
+        envelope: { 
+          attack: 0.02, 
+          decay: 0.1, 
+          sustain: 0.95, 
+          release: 0.3 
+        },
+        filter: {
+          frequency: 2000,
+          type: "lowpass"
+        }
+      }).toDestination();
+    
+    case '80': // Synth - Electronic characteristic
+      return new Tone.PolySynth(Tone.MonoSynth, {
+        oscillator: {
+          type: "sawtooth"
+        },
+        envelope: { 
+          attack: 0.005, 
+          decay: 0.3, 
+          sustain: 0.4, 
+          release: 0.8 
+        },
+        filter: {
+          frequency: 1200,
+          type: "lowpass",
+          Q: 8
+        },
+        filterEnvelope: {
+          attack: 0.02,
+          decay: 0.4,
+          sustain: 0.2,
+          release: 0.6,
+          baseFrequency: 200,
+          octaves: 4
+        }
+      }).toDestination();
+    
+    default: // Default to piano
+      return new Tone.PolySynth(Tone.Synth, {
+        oscillator: { 
+          type: "fatsawtooth",
+          spread: 20
+        },
+        envelope: { 
+          attack: 0.005, 
+          decay: 0.3, 
+          sustain: 0.2, 
+          release: 2.0 
+        },
+        filter: {
+          frequency: 3000,
+          type: "lowpass"
+        }
+      }).toDestination();
+  }
+};
+
+  // Initialize Tone.js synth based on instrument
   useEffect(() => {
     const initializeSynth = async () => {
       try {
-        // Create a polyphonic synthesizer
-        synthRef.current = new Tone.PolySynth(Tone.Synth, {
-          oscillator: {
-            type: "triangle"
-          },
-          envelope: {
-            attack: 0.02,
-            decay: 0.1,
-            sustain: 0.3,
-            release: 1
-          }
-        }).toDestination();
+        // Dispose of existing synth
+        if (synthRef.current) {
+          synthRef.current.dispose();
+        }
+
+        // Create instrument-specific synthesizer
+        synthRef.current = createInstrumentSynth(instrument);
 
         // Set initial volume
         synthRef.current.volume.value = Tone.gainToDb(volume);
@@ -64,7 +335,7 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, []);
+  }, [instrument, volume]); // Re-initialize when instrument changes
 
   // Load MIDI file when path changes
   useEffect(() => {
@@ -82,10 +353,13 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
 
       try {
         // Construct the full URL for the MIDI file
-        // If midiPath is just a filename, prepend the uploads URL
-        const fullUrl = midiPath.startsWith('http') 
-          ? midiPath 
-          : `http://localhost:3001/uploads/${midiPath}`;
+        // Handle blob URLs, full HTTP URLs, or relative paths
+        let fullUrl: string;
+        if (midiPath.startsWith('blob:') || midiPath.startsWith('http')) {
+          fullUrl = midiPath;
+        } else {
+          fullUrl = `http://localhost:3001/uploads/${midiPath}`;
+        }
         
         console.log('Loading MIDI from:', fullUrl);
         
@@ -147,16 +421,24 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
     midiRef.current.tracks.forEach((track) => {
       track.notes.forEach((note) => {
         Tone.Transport.schedule((time) => {
-          synthRef.current?.triggerAttackRelease(
-            note.name,
-            note.duration,
-            time,
-            note.velocity
-          );
+          if (synthRef.current) {
+            if (instrument === '128') {
+              // For drums, just trigger the noise
+              (synthRef.current as Tone.NoiseSynth).triggerAttackRelease(note.duration, time, note.velocity);
+            } else {
+              // For all other instruments, use normal note triggering
+              (synthRef.current as Tone.PolySynth).triggerAttackRelease(
+                note.name,
+                note.duration,
+                time,
+                note.velocity
+              );
+            }
+          }
         }, note.time);
       });
     });
-  }, []);
+  }, [instrument]);
 
   const handlePlay = async () => {
     if (!midiPath || disabled || !midiRef.current || !synthRef.current) return;

@@ -66,8 +66,14 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       streamRef.current = stream;
       chunksRef.current = [];
 
+      // Try to use WAV format if supported, otherwise fall back to webm
+      let mimeType = 'audio/wav';
+      if (!MediaRecorder.isTypeSupported('audio/wav')) {
+        mimeType = 'audio/webm;codecs=opus';
+      }
+
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
+        mimeType: mimeType
       });
 
       mediaRecorderRef.current = mediaRecorder;
@@ -79,9 +85,9 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        // Convert to WAV format for the backend
-        convertToWav(audioBlob);
+        const audioBlob = new Blob(chunksRef.current, { type: mimeType });
+        // Convert to WAV format for the backend if needed
+        convertToWav(audioBlob, mimeType);
       };
 
       mediaRecorder.start();
@@ -118,15 +124,71 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   };
 
-  const convertToWav = async (audioBlob: Blob) => {
+  const convertToWav = async (audioBlob: Blob, sourceMimeType: string) => {
     try {
-      // For now, we'll send the webm blob and let the backend handle conversion
-      // In a production app, you might want to convert to WAV on the client side
-      onRecordingComplete(audioBlob);
+      if (sourceMimeType === 'audio/wav') {
+        // Already in WAV format, pass it directly
+        onRecordingComplete(audioBlob);
+        return;
+      }
+
+      // Convert webm/other formats to WAV using Web Audio API
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      
+      // Convert to WAV format
+      const wavBlob = await audioBufferToWav(audioBuffer);
+      onRecordingComplete(wavBlob);
     } catch (error) {
       console.error('Error converting audio:', error);
-      alert('Failed to process recording. Please try again.');
+      // If conversion fails, try sending the original blob
+      // The backend should handle the conversion
+      onRecordingComplete(audioBlob);
     }
+  };
+
+  const audioBufferToWav = (audioBuffer: AudioBuffer): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const numberOfChannels = audioBuffer.numberOfChannels;
+      const sampleRate = audioBuffer.sampleRate;
+      const length = audioBuffer.length * numberOfChannels * 2;
+      const arrayBuffer = new ArrayBuffer(44 + length);
+      const view = new DataView(arrayBuffer);
+
+      // Write WAV header
+      const writeString = (offset: number, string: string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + length, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numberOfChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * numberOfChannels * 2, true);
+      view.setUint16(32, numberOfChannels * 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, 'data');
+      view.setUint32(40, length, true);
+
+      // Write audio data
+      let offset = 44;
+      for (let i = 0; i < audioBuffer.length; i++) {
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+          const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+          offset += 2;
+        }
+      }
+
+      resolve(new Blob([arrayBuffer], { type: 'audio/wav' }));
+    });
   };
 
   const formatTime = (seconds: number): string => {
@@ -139,9 +201,9 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
+    // Validate file type - only accept .wav files
     if (!file.type.includes('audio/wav') && !file.name.toLowerCase().endsWith('.wav')) {
-      alert('Please upload a .wav file');
+      alert('Please upload a .wav file only. Other audio formats are not supported.');
       return;
     }
 
@@ -152,8 +214,8 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       return;
     }
 
-    // Convert file to blob and pass to parent
-    const blob = new Blob([file], { type: file.type });
+    // Create a blob with proper WAV mime type and pass to parent
+    const blob = new Blob([file], { type: 'audio/wav' });
     onRecordingComplete(blob);
   };
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import AudioRecorder from './AudioRecorder';
 import MidiPlayer from './MidiPlayer';
 import InstrumentSearch from './InstrumentSearch';
-import { convertWavToMidi } from '../services/api';
+import { transcribeSingle, getInstrumentLabel } from '../services/api';
 
 interface TrackProps {
   trackId: string;
@@ -49,28 +49,26 @@ const Track: React.FC<TrackProps> = ({
     }));
 
     try {
-      // Convert the recorded audio to MIDI
-      const result = await convertWavToMidi(audioBlob, trackData.instrument);
-
-      if (result.success && result.midiPath) {
-        setTrackData(prev => ({
-          ...prev,
-          midiPath: result.midiPath,
-          isConverting: false,
-        }));
-        onMidiGenerated?.(result.midiPath);
-      } else {
-        setTrackData(prev => ({
-          ...prev,
-          isConverting: false,
-          conversionError: result.error || 'Conversion failed',
-        }));
-      }
+      // Get the instrument label from the selected instrument value
+      const instrumentLabel = getInstrumentLabel(trackData.instrument);
+      
+      // Transcribe the recorded audio to MIDI with the selected instrument
+      const midiBlob = await transcribeSingle(audioBlob, instrumentLabel);
+      
+      // Create a URL for the MIDI blob so it can be used by MidiPlayer
+      const midiUrl = URL.createObjectURL(midiBlob);
+      
+      setTrackData(prev => ({
+        ...prev,
+        midiPath: midiUrl,
+        isConverting: false,
+      }));
+      onMidiGenerated?.(midiUrl);
     } catch (error) {
       setTrackData(prev => ({
         ...prev,
         isConverting: false,
-        conversionError: 'Failed to convert recording',
+        conversionError: 'Failed to transcribe recording',
       }));
     }
   };
@@ -195,6 +193,7 @@ const Track: React.FC<TrackProps> = ({
         <h4 className="text-md font-medium text-gray-300 mb-2">MIDI Preview</h4>
         <MidiPlayer
           midiPath={trackData.midiPath}
+          instrument={trackData.instrument}
           disabled={trackData.isConverting || !trackData.midiPath}
         />
       </div>
