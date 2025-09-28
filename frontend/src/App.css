@@ -1,1 +1,179 @@
 @import "tailwindcss";
+
+/* Custom Animations for Hero Section */
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes soundwavePulse {
+  0% {
+    height: 20px;
+    opacity: 0.4;
+    transform: translateY(-50%) scaleY(0.5);
+  }
+  100% {
+    height: 80px;
+    opacity: 0.9;
+    transform: translateY(-50%) scaleY(1.2);
+  }
+}
+
+@keyframes floatParticle {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translateY(-30px) translateX(20px) rotate(90deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-10px) translateX(-15px) rotate(180deg);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translateY(-25px) translateX(10px) rotate(270deg);
+    opacity: 0.9;
+  }
+}
+
+@keyframes rippleWave {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.8);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scaleX(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.5);
+  }
+}
+
+/* Hero Section Entrance Animations */
+@keyframes slideInFromLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-100px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes flyInFromSide {
+  0% {
+    opacity: 0;
+    transform: translateX(-200px) rotate(-15deg) scale(0.7);
+  }
+  70% {
+    opacity: 0.9;
+    transform: translateX(30px) rotate(3deg) scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes textReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) translateX(0);
+  }
+}
+
+/* Enhanced scroll indicator animations */
+@keyframes arrowPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translateY(-5px) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(15px) scale(1.4);
+  }
+}
+
+@keyframes glow {
+  0% {
+    opacity: 0.2;
+    transform: scale(0.6) rotate(0deg);
+  }
+  33% {
+    opacity: 0.8;
+    transform: scale(1.5) rotate(120deg);
+  }
+  66% {
+    opacity: 0.4;
+    transform: scale(1.2) rotate(240deg);
+  }
+  100% {
+    opacity: 0.6;
+    transform: scale(1.8) rotate(360deg);
+  }
+}
+
+/* Musical Staff Animations */
+@keyframes noteScroll {
+  0% {
+    transform: translateX(-50px) translateY(-50%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(calc(100vw + 50px)) translateY(-50%);
+    opacity: 0;
+  }
+}
+
+@keyframes floatNote {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translateY(-20px) rotate(5deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-10px) rotate(-3deg);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translateY(-15px) rotate(2deg);
+    opacity: 0.9;
+  }
+}
+
+/* Scroll-based note animation */
+.musical-note {
+  transition: transform 0.1s ease-out;
+}
+
+/* Responsive staff positioning */
+@media (max-width: 768px) {
+  .musical-staff {
+    transform: scale(0.8);
+  }
+}

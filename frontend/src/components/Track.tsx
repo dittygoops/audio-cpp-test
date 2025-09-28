@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import AudioRecorder from './AudioRecorder';
 import MidiPlayer from './MidiPlayer';
-import { convertWavToMidi, MIDI_INSTRUMENTS } from '../services/api';
+import InstrumentSearch from './InstrumentSearch';
+import { convertWavToMidi } from '../services/api';
 
 interface TrackProps {
   trackId: string;
@@ -32,10 +33,10 @@ const Track: React.FC<TrackProps> = ({
     conversionError: undefined,
   });
 
-  const handleInstrumentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleInstrumentChange = (value: string) => {
     setTrackData(prev => ({
       ...prev,
-      instrument: e.target.value,
+      instrument: value,
     }));
   };
 
@@ -83,55 +84,71 @@ const Track: React.FC<TrackProps> = ({
     }));
   };
 
-  const selectedInstrument = MIDI_INSTRUMENTS.find(inst => inst.value === trackData.instrument);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">
+        <h3 className="text-lg font-semibold text-white">
           Track {trackNumber}
         </h3>
         {onRemove && (
           <button
             onClick={onRemove}
-            className="text-red-500 hover:text-red-700 p-1"
+            className="text-red-400 hover:text-red-300 p-1"
             title="Remove Track"
           >
-            🗑️
+            <svg 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
           </button>
         )}
       </div>
 
       {/* Instrument Selection */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-300 mb-2">
           Select Instrument
         </label>
-        <select
+        <InstrumentSearch
           value={trackData.instrument}
           onChange={handleInstrumentChange}
-          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          {MIDI_INSTRUMENTS.map(instrument => (
-            <option key={instrument.value} value={instrument.value}>
-              {instrument.label}
-            </option>
-          ))}
-        </select>
-        {selectedInstrument && (
-          <div className="mt-1 text-sm text-gray-600">
-            Selected: {selectedInstrument.label}
-          </div>
-        )}
+        />
       </div>
 
       {/* Recording Section */}
       <div className="mb-4">
-        <h4 className="text-md font-medium text-gray-700 mb-2">Recording</h4>
+        <h4 className="text-md font-medium text-gray-300 mb-2">Recording</h4>
         {trackData.audioBlob ? (
-          <div className="flex flex-col items-center p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="text-green-600 mb-2">✅</div>
-            <p className="text-green-700 text-sm text-center mb-2">
+          <div className="flex flex-col items-center p-3 bg-green-900/50 border border-green-700 rounded-lg">
+            <div className="text-green-400 mb-2">
+              <svg 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22,4 12,14.01 9,11.01"></polyline>
+              </svg>
+            </div>
+            <p className="text-green-300 text-sm text-center mb-2">
               Recording completed successfully
             </p>
             <button
@@ -151,19 +168,19 @@ const Track: React.FC<TrackProps> = ({
 
       {/* Conversion Status */}
       {trackData.isConverting && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mb-4 p-3 bg-blue-900/50 border border-blue-700 rounded-lg">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin text-blue-600">⟳</div>
-            <span className="text-blue-700">Converting to MIDI...</span>
+            <div className="animate-spin text-blue-400">⟳</div>
+            <span className="text-blue-300">Converting to MIDI...</span>
           </div>
         </div>
       )}
 
       {/* Conversion Error */}
       {trackData.conversionError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <div className="text-red-600 mb-1">❌</div>
-          <p className="text-red-700 text-sm mb-2">{trackData.conversionError}</p>
+        <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg">
+          <div className="text-red-400 mb-1">❌</div>
+          <p className="text-red-300 text-sm mb-2">{trackData.conversionError}</p>
           <button
             onClick={handleReRecord}
             className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
@@ -175,7 +192,7 @@ const Track: React.FC<TrackProps> = ({
 
       {/* MIDI Player */}
       <div>
-        <h4 className="text-md font-medium text-gray-700 mb-2">MIDI Preview</h4>
+        <h4 className="text-md font-medium text-gray-300 mb-2">MIDI Preview</h4>
         <MidiPlayer
           midiPath={trackData.midiPath}
           disabled={trackData.isConverting || !trackData.midiPath}
