@@ -99,6 +99,111 @@ class DualInstrumentRecorder:
         
         return combined_midi
     
+    def combine_multiple_midi_tracks(self, midi_data_list, instrument_names, output_file):
+        """
+        Combine multiple MIDI data into a single file with separate tracks
+        
+        Args:
+            midi_data_list (list): List of MIDI data objects (PrettyMIDI objects)
+            instrument_names (list): List of instrument names for each track
+            output_file (str): Path for combined MIDI file
+        """
+        print(f"\n=== Combining {len(midi_data_list)} MIDI Tracks ===")
+        
+        # Create a new MIDI file
+        combined_midi = pretty_midi.PrettyMIDI()
+        
+        # Default MIDI programs for different instruments (General MIDI)
+        instrument_programs = {
+            'piano': 0,        # Acoustic Grand Piano
+            'bass': 32,        # Acoustic Bass
+            'guitar': 24,      # Acoustic Guitar (nylon)
+            'drums': 128,      # Drum Kit (special channel 9)
+            'violin': 40,      # Violin
+            'flute': 73,       # Flute
+            'trumpet': 56,     # Trumpet
+            'saxophone': 64,   # Soprano Sax
+            'cello': 42,       # Cello
+            'clarinet': 71,    # Clarinet
+            'organ': 16,       # Drawbar Organ
+            'electric_guitar': 27,  # Electric Guitar (clean)
+            'electric_bass': 33,    # Electric Bass (finger)
+            'synth': 80,       # Lead 1 (square)
+        }
+        
+        # Add each track
+        for i, (midi_data, instrument_name) in enumerate(zip(midi_data_list, instrument_names)):
+            if midi_data and hasattr(midi_data, 'instruments') and midi_data.instruments:
+                # Determine MIDI program based on instrument name
+                program = 0  # Default to piano
+                name_lower = instrument_name.lower().replace(' ', '_')
+                
+                for key, prog in instrument_programs.items():
+                    if key in name_lower:
+                        program = prog
+                        break
+                
+                # For drums, use channel 9 (0-indexed as channel 9, but MIDI uses 1-indexed channels)
+                is_drum = program == 128
+                
+                # Create instrument track
+                track = pretty_midi.Instrument(
+                    program=0 if is_drum else program,
+                    is_drum=is_drum,
+                    name=instrument_name
+                )
+                
+                # Add all notes from the MIDI data to this track
+                note_count = 0
+                for instrument in midi_data.instruments:
+                    for note in instrument.notes:
+                        track.notes.append(note)
+                        note_count += 1
+                
+                combined_midi.instruments.append(track)
+                print(f"Added {instrument_name} track with {note_count} notes (Program: {program})")
+            else:
+                print(f"Skipped {instrument_name} - no MIDI data or instruments found")
+        
+        # Save combined MIDI file
+        combined_midi.write(output_file)
+        print(f"✅ Combined MIDI saved to: {output_file}")
+        
+        return combined_midi
+    
+    def combine_existing_midi_files(self, midi_file_paths, instrument_names=None):
+        """
+        Combine existing MIDI files into a single multi-track MIDI file (no transcription).
+        
+        Args:
+            midi_file_paths (list[str]): Paths to MIDI files (.mid/.midi)
+            instrument_names (list[str] | None): Optional names for tracks
+        Returns:
+            str: Path to combined MIDI file
+        """
+        try:
+            if not instrument_names:
+                instrument_names = [f"Track_{i+1}" for i in range(len(midi_file_paths))]
+
+            # Validate files exist
+            for i, path in enumerate(midi_file_paths):
+                if not os.path.exists(path):
+                    raise FileNotFoundError(f"MIDI file not found: {path}")
+
+            # Load each MIDI file
+            loaded_midis = []
+            for path in midi_file_paths:
+                loaded_midis.append(pretty_midi.PrettyMIDI(path))
+
+            # Build combined file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            combined_midi_file = f"multi_combined_{timestamp}.mid"
+            self.combine_multiple_midi_tracks(loaded_midis, instrument_names, combined_midi_file)
+            return combined_midi_file
+        except Exception as e:
+            print(f"❌ Error combining existing MIDI files: {e}")
+            return None
+
     def process_dual_files(self, piano_file, bass_file):
         """
         Process existing piano and bass audio files, then combine into single MIDI file
@@ -151,6 +256,69 @@ class DualInstrumentRecorder:
             print("🎵 You can now import the MIDI file into GarageBand!")
             print("   - Track 1: Piano (Acoustic Grand Piano)")
             print("   - Track 2: Bass (Acoustic Bass)")
+            
+            return combined_midi_file
+            
+        except Exception as e:
+            print(f"❌ Error during processing: {e}")
+            return None
+
+    def process_multiple_files(self, audio_files, instrument_names=None):
+        """
+        Process multiple audio files and combine into single MIDI file
+        
+        Args:
+            audio_files (list): List of paths to audio files
+            instrument_names (list): Optional list of instrument names corresponding to files
+            
+        Returns:
+            str: Path to combined MIDI file
+        """
+        try:
+            print(f"=== Multi Instrument File Processor ===")
+            print(f"Processing {len(audio_files)} audio files, then combining them into one MIDI file.")
+            print("The MIDI file will have multiple tracks that can be layered in GarageBand.")
+            print()
+            
+            if not instrument_names:
+                instrument_names = [f"Instrument_{i+1}" for i in range(len(audio_files))]
+            
+            # Check if all files exist
+            for i, audio_file in enumerate(audio_files):
+                if not os.path.exists(audio_file):
+                    raise FileNotFoundError(f"{instrument_names[i]} file not found: {audio_file}")
+            
+            # Process all files
+            midi_data_list = []
+            note_counts = []
+            
+            for i, audio_file in enumerate(audio_files):
+                instrument_name = instrument_names[i] if i < len(instrument_names) else f"Instrument_{i+1}"
+                print(f"\n=== Processing {instrument_name} File ===")
+                print(f"{instrument_name} file: {audio_file}")
+                
+                midi_data, notes = self.transcriber.detect_pitches(audio_file)
+                midi_data_list.append(midi_data)
+                note_counts.append(len(notes))
+                
+                print(f"✅ {instrument_name} processing complete! Notes detected: {len(notes)}")
+            
+            # Combine MIDI tracks
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            combined_midi_file = f"multi_combined_{timestamp}.mid"
+            
+            combined_midi = self.combine_multiple_midi_tracks(midi_data_list, instrument_names, combined_midi_file)
+            
+            # Print final summary
+            print(f"\n=== Processing Complete ===")
+            for i, (audio_file, instrument_name, note_count) in enumerate(zip(audio_files, instrument_names, note_counts)):
+                print(f"{instrument_name} file: {audio_file}")
+                print(f"Total {instrument_name} notes: {note_count}")
+            print(f"Combined MIDI: {combined_midi_file}")
+            print()
+            print("🎵 You can now import the MIDI file into GarageBand!")
+            for i, instrument_name in enumerate(instrument_names):
+                print(f"   - Track {i+1}: {instrument_name}")
             
             return combined_midi_file
             

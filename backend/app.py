@@ -32,7 +32,7 @@ CORS(app)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'wav', 'mp3', 'flac', 'm4a'}
+ALLOWED_EXTENSIONS = {'mid', 'midi'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB max file size
 PORT = 3001
 
@@ -59,7 +59,7 @@ def health_check():
         'available_routes': [
             '/api/transcribe-single',
             '/api/transcribe-vocals', 
-            '/api/transcribe-dual',
+            '/api/combine-midi',
             '/api/health'
         ]
     })
@@ -184,58 +184,59 @@ def transcribe_single():
 
 #ROUTE THAT IS ACTUALLY USED 
 
-@app.route('/api/transcribe-dual', methods=['POST'])
-def transcribe_dual():
+@app.route('/api/combine-midi', methods=['POST'])
+def combine_midi():
     """
-    Route for dual_instrument_recorder.py functionality - process two instruments
+    Route for combining multiple existing MIDI files into a single multi-track MIDI file
     """
     try:
-        # Expect two audio files: piano and bass
-        if 'piano' not in request.files or 'bass' not in request.files:
-            return jsonify({'error': 'Both piano and bass audio files required'}), 400
+        # Check if any files were uploaded
+        if not request.files:
+            return jsonify({'error': 'No MIDI files provided'}), 400
         
-        piano_file = request.files['piano']
-        bass_file = request.files['bass']
-        
-        if piano_file.filename == '' or bass_file.filename == '':
-            return jsonify({'error': 'Both files must be selected'}), 400
-        
-        if not (allowed_file(piano_file.filename) and allowed_file(bass_file.filename)):
-            return jsonify({'error': 'File types not allowed. Use WAV, MP3, FLAC, or M4A'}), 400
-        
-        # Save both uploaded files
+        # Get all uploaded files
+        uploaded_files = []
+        file_paths = []
+        file_names = []
         timestamp = int(time.time() * 1000)
-        piano_filename = secure_filename(piano_file.filename)
-        bass_filename = secure_filename(bass_file.filename)
         
-        piano_path = os.path.join(UPLOAD_FOLDER, f"{timestamp}_piano_{piano_filename}")
-        bass_path = os.path.join(UPLOAD_FOLDER, f"{timestamp}_bass_{bass_filename}")
+        for key, file in request.files.items():
+            if file and file.filename != '':
+                if not allowed_file(file.filename):
+                    return jsonify({'error': f'File type not allowed for {file.filename}. Use MID or MIDI'}), 400
+                
+                # Save the file
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(UPLOAD_FOLDER, f"{timestamp}_{key}_{filename}")
+                file.save(file_path)
+                
+                uploaded_files.append(file)
+                file_paths.append(file_path)
+                file_names.append(filename)
         
-        piano_file.save(piano_path)
-        bass_file.save(bass_path)
+        if len(uploaded_files) == 0:
+            return jsonify({'error': 'No valid files uploaded'}), 400
         
-        print(f"Processing dual instruments - Piano: {piano_filename}, Bass: {bass_filename}")
+        print(f"Processing {len(uploaded_files)} MIDI files for combination")
+        for i, name in enumerate(file_names):
+            print(f"  File {i+1}: {name}")
         
         # Create dual instrument recorder and process files
         recorder = DualInstrumentRecorder()
         
         try:
-            # Process both files and combine
-            combined_midi_file = recorder.process_dual_files(piano_path, bass_path)
+            # Combine existing MIDI files directly (no transcription)
+            combined_midi_file = recorder.combine_existing_midi_files(file_paths, list(request.files.keys()))
             
             if combined_midi_file and os.path.exists(combined_midi_file):
-                # Move combined MIDI to upload folder for serving
-                served_name = f"{timestamp}_dual_combined.mid"
-                served_path = os.path.join(UPLOAD_FOLDER, served_name)
-                shutil.move(combined_midi_file, served_path)
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Dual instrument transcription completed successfully',
-                    'pianoFile': piano_filename,
-                    'bassFile': bass_filename,
-                    'combinedMidi': served_name
-                })
+                # Return the combined MIDI file directly
+                download_name = f"{timestamp}_combined.mid"
+                return send_file(
+                    combined_midi_file,
+                    as_attachment=True,
+                    download_name=download_name,
+                    mimetype='audio/midi'
+                )
             else:
                 return jsonify({
                     'success': False,
@@ -243,20 +244,20 @@ def transcribe_dual():
                 }), 500
                 
         except Exception as e:
-            print(f"Error during dual transcription: {str(e)}")
+            print(f"Error during multi transcription: {str(e)}")
             return jsonify({
                 'success': False,
-                'error': 'Dual transcription failed',
+                'error': 'Multi transcription failed',
                 'details': str(e)
             }), 500
         finally:
             recorder.transcriber.cleanup()
     
     except Exception as e:
-        print(f"Error in transcribe_dual: {str(e)}")
+        print(f"Error in combine_midi: {str(e)}")
         return jsonify({
             'success': False,
-            'error': 'Failed to process dual instrument files',
+            'error': 'Failed to process multiple instrument files',
             'details': str(e)
         }), 500
 
@@ -299,12 +300,12 @@ if __name__ == '__main__':
     print(f"Starting Audio-to-MIDI Flask server on port {PORT}")
     print(f"Temporary upload folder: {UPLOAD_FOLDER}")
     print(f"Max file size: {MAX_FILE_SIZE / (1024*1024):.1f}MB")
-    print(f"Vercel blob storage: {VERCEL_BLOB_BASE_URL}")
+   
     print(f"Health check: http://localhost:{PORT}/api/health")
     print("\nAvailable routes:")
     print(f"  POST /api/transcribe-single - Single audio file to MIDI (outputs to Vercel blob storage)")
     print(f"  POST /api/transcribe-vocals  - Vocals-only processing") 
-    print(f"  POST /api/transcribe-dual    - Dual instrument processing")
+    print(f"  POST /api/combine-midi      - Combine multiple audio files into single MIDI")
     print(f"  GET  /api/health            - Health check")
     print(f"  GET  /uploads/<filename>    - Serve generated files")
     
