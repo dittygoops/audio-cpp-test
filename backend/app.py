@@ -37,11 +37,10 @@ MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB max file size
 PORT = 3001
 
 # Vercel blob storage configuration
-VERCEL_BLOB_READ_WRITE_TOKEN = os.getenv('VERCEL_BLOB_READ_WRITE_TOKEN', 'vercel_blob_rw_Ny9jzcJeQEq6rfQQ_y3TEv1ypf9JzmNmdh62hT4bOYEh4bO')
-VERCEL_BLOB_BASE_URL = os.getenv('VERCEL_BLOB_BASE_URL', 'https://ny9jzcjeqeq6rfqq.public.blob.vercel-storage.com')
+
 
 # Set the Vercel blob token for the library
-os.environ['BLOB_READ_WRITE_TOKEN'] = VERCEL_BLOB_READ_WRITE_TOKEN
+
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
