@@ -9,6 +9,7 @@ interface TrackProps {
   trackNumber: number;
   onRemove?: () => void;
   onMidiGenerated?: (midiPath: string) => void;
+  onTrackInfoUpdate?: (trackId: string, instrument: string, midiPath?: string) => void;
 }
 
 export interface TrackData {
@@ -25,6 +26,7 @@ const Track: React.FC<TrackProps> = ({
   trackNumber,
   onRemove,
   onMidiGenerated,
+  onTrackInfoUpdate,
 }) => {
   const [trackData, setTrackData] = useState<TrackData>({
     id: trackId,
@@ -38,6 +40,10 @@ const Track: React.FC<TrackProps> = ({
       ...prev,
       instrument: value,
     }));
+    
+    // Notify parent about instrument change
+    const instrumentLabel = getInstrumentLabel(value);
+    onTrackInfoUpdate?.(trackId, instrumentLabel, trackData.midiPath);
   };
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
@@ -64,6 +70,9 @@ const Track: React.FC<TrackProps> = ({
         isConverting: false,
       }));
       onMidiGenerated?.(midiUrl);
+      
+      // Notify parent about track info update
+      onTrackInfoUpdate?.(trackId, instrumentLabel, midiUrl);
     } catch (error) {
       setTrackData(prev => ({
         ...prev,

@@ -1,13 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import Track from './Track';
 
-interface TrackListProps {
-  onMidiFilesChange?: (midiFiles: string[]) => void;
+interface TrackInfo {
+  midiPath: string;
+  instrument: string;
+  trackId: string;
 }
 
-const TrackList: React.FC<TrackListProps> = ({ onMidiFilesChange }) => {
+interface TrackListProps {
+  onMidiFilesChange?: (midiFiles: string[]) => void;
+  onTrackInfoChange?: (trackInfos: TrackInfo[]) => void;
+}
+
+const TrackList: React.FC<TrackListProps> = ({ onMidiFilesChange, onTrackInfoChange }) => {
   const [tracks, setTracks] = useState<string[]>(['track-1', 'track-2']);
   const [midiFiles, setMidiFiles] = useState<string[]>([]);
+  const [trackInfos, setTrackInfos] = useState<TrackInfo[]>([]);
   const [isVisible, setIsVisible] = useState(false);
   const trackListRef = useRef<HTMLDivElement>(null);
 
@@ -18,8 +26,9 @@ const TrackList: React.FC<TrackListProps> = ({ onMidiFilesChange }) => {
 
   const removeTrack = (trackId: string) => {
     setTracks(prev => prev.filter(id => id !== trackId));
-    // Also remove any associated MIDI files
+    // Also remove any associated MIDI files and track info
     setMidiFiles(prev => prev.filter(path => !path.includes(trackId)));
+    setTrackInfos(prev => prev.filter(info => info.trackId !== trackId));
   };
 
   const handleMidiGenerated = (midiPath: string) => {
@@ -30,10 +39,24 @@ const TrackList: React.FC<TrackListProps> = ({ onMidiFilesChange }) => {
     });
   };
 
+  const handleTrackInfoUpdate = (trackId: string, instrument: string, midiPath?: string) => {
+    if (midiPath) {
+      setTrackInfos(prev => {
+        const filtered = prev.filter(info => info.trackId !== trackId);
+        return [...filtered, { trackId, instrument, midiPath }];
+      });
+    }
+  };
+
   // Notify parent component when midiFiles change
   useEffect(() => {
     onMidiFilesChange?.(midiFiles);
   }, [midiFiles, onMidiFilesChange]);
+
+  // Notify parent component when trackInfos change
+  useEffect(() => {
+    onTrackInfoChange?.(trackInfos);
+  }, [trackInfos, onTrackInfoChange]);
 
   // Intersection Observer for scroll-triggered animations
   useEffect(() => {
@@ -132,6 +155,7 @@ const TrackList: React.FC<TrackListProps> = ({ onMidiFilesChange }) => {
                 trackNumber={index + 1}
                 onRemove={tracks.length > 1 ? () => removeTrack(trackId) : undefined}
                 onMidiGenerated={handleMidiGenerated}
+                onTrackInfoUpdate={handleTrackInfoUpdate}
               />
             </div>
           ))}

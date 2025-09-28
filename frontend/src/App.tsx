@@ -3,14 +3,25 @@ import TrackList from './components/TrackList';
 import MultiTrackPlayer from './components/MultiTrackPlayer';
 import './App.css';
 
+interface TrackInfo {
+  midiPath: string;
+  instrument: string;
+  trackId: string;
+}
+
 function App() {
   const [midiFiles, setMidiFiles] = useState<string[]>([]);
+  const [trackInfos, setTrackInfos] = useState<TrackInfo[]>([]);
   const [isMusicalScrollActive, setIsMusicalScrollActive] = useState(true);
   const [accumulatedScroll, setAccumulatedScroll] = useState(0);
 
 
   const handleMidiFilesUpdate = (files: string[]) => {
     setMidiFiles(files);
+  };
+
+  const handleTrackInfoUpdate = (trackInfos: TrackInfo[]) => {
+    setTrackInfos(trackInfos);
   };
 
   // Handle scroll-based note animation with scroll locking
@@ -394,12 +405,16 @@ function App() {
         <div className="space-y-8">
 
           {/* Track List */}
-          <TrackList onMidiFilesChange={handleMidiFilesUpdate} />
+          <TrackList 
+            onMidiFilesChange={handleMidiFilesUpdate}
+            onTrackInfoChange={handleTrackInfoUpdate}
+          />
 
           {/* Multi-Track Player Section */}
           {midiFiles.length > 0 && (
             <MultiTrackPlayer 
               midiFiles={midiFiles}
+              trackInfos={trackInfos}
               onTrackUpdate={(tracks) => {
                 console.log('Multi-track player updated:', tracks);
               }}

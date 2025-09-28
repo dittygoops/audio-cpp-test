@@ -15,12 +15,19 @@ interface Track {
   name: string;
 }
 
+interface TrackInfo {
+  midiPath: string;
+  instrument: string;
+  trackId: string;
+}
+
 interface MultiTrackPlayerProps {
   midiFiles: string[];
+  trackInfos?: TrackInfo[];
   onTrackUpdate?: (tracks: Track[]) => void;
 }
 
-const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackUpdate }) => {
+const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInfos = [], onTrackUpdate }) => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [masterVolume, setMasterVolume] = useState(70);
@@ -77,12 +84,17 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
 
       for (let i = 0; i < midiFiles.length; i++) {
         const midiPath = midiFiles[i];
+        
+        // Find matching track info for this MIDI file
+        const trackInfo = trackInfos.find(info => info.midiPath === midiPath);
+        const instrumentName = trackInfo?.instrument || getInstrumentForTrack(i);
+        
         const track: Track = {
           id: `track-${i}`,
           synth: null,
           part: null,
           notes: [],
-          instrument: getInstrumentForTrack(i),
+          instrument: instrumentName,
           volume: 0.8,
           muted: false,
           loaded: false,
@@ -107,7 +119,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
     } else {
       setTracks([]);
     }
-  }, [midiFiles]);
+  }, [midiFiles, trackInfos]);
 
   const getInstrumentForTrack = (index: number): string => {
     const instruments = ['piano', 'guitar', 'bass', 'violin', 'trumpet', 'flute', 'drums', 'organ', 'saxophone', 'synth'];
@@ -121,12 +133,18 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
 
     let synth: Tone.PolySynth | Tone.NoiseSynth;
 
-    switch (track.instrument) {
+    // Normalize instrument name to lowercase for comparison
+    const instrument = track.instrument.toLowerCase();
+    
+    console.log(`Creating synthesizer for track ${track.id} with instrument: "${track.instrument}" (normalized: "${instrument}")`);
+    
+    switch (instrument) {
       case 'piano':
         synth = new Tone.PolySynth(Tone.Synth, {
           oscillator: { type: "fatsawtooth" },
           envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 2.0 }
         }).connect(masterGainRef.current);
+        console.log(`✓ Created Piano synthesizer for track ${track.id}`);
         break;
       case 'guitar':
         synth = new Tone.PolySynth(Tone.FMSynth, {
@@ -134,6 +152,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
           modulationIndex: 15,
           envelope: { attack: 0.002, decay: 0.8, sustain: 0.05, release: 1.2 }
         }).connect(masterGainRef.current);
+        console.log(`✓ Created Guitar synthesizer for track ${track.id}`);
         break;
       case 'bass':
         synth = new Tone.PolySynth(Tone.FMSynth, {
@@ -141,12 +160,22 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
           modulationIndex: 3,
           envelope: { attack: 0.01, decay: 0.4, sustain: 0.8, release: 1.5 }
         }).connect(masterGainRef.current);
+        console.log(`✓ Created Bass synthesizer for track ${track.id}`);
+        break;
+      case 'drums':
+        synth = new Tone.NoiseSynth({
+          noise: { type: "brown" },
+          envelope: { attack: 0.001, decay: 0.15, sustain: 0.0 }
+        }).connect(masterGainRef.current);
+        console.log(`✓ Created Drums synthesizer for track ${track.id}`);
         break;
       case 'violin':
+      case 'cello':
         synth = new Tone.PolySynth(Tone.AMSynth, {
           harmonicity: 3,
           envelope: { attack: 0.2, decay: 0.1, sustain: 0.9, release: 0.8 }
         }).connect(masterGainRef.current);
+        console.log(`✓ Created ${track.instrument} synthesizer for track ${track.id}`);
         break;
       case 'trumpet':
         synth = new Tone.PolySynth(Tone.FMSynth, {
@@ -154,24 +183,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
           modulationIndex: 8,
           envelope: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.6 }
         }).connect(masterGainRef.current);
-        break;
-      case 'flute':
-        synth = new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: "sine" },
-          envelope: { attack: 0.1, decay: 0.2, sustain: 0.6, release: 0.8 }
-        }).connect(masterGainRef.current);
-        break;
-      case 'drums':
-        synth = new Tone.NoiseSynth({
-          noise: { type: "brown" },
-          envelope: { attack: 0.001, decay: 0.15, sustain: 0.0 }
-        }).connect(masterGainRef.current);
-        break;
-      case 'organ':
-        synth = new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: "square" },
-          envelope: { attack: 0.02, decay: 0.1, sustain: 0.95, release: 0.3 }
-        }).connect(masterGainRef.current);
+        console.log(`✓ Created Trumpet synthesizer for track ${track.id}`);
         break;
       case 'saxophone':
         synth = new Tone.PolySynth(Tone.FMSynth, {
@@ -179,14 +191,31 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
           modulationIndex: 12,
           envelope: { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.8 }
         }).connect(masterGainRef.current);
+        console.log(`✓ Created Saxophone synthesizer for track ${track.id}`);
+        break;
+      case 'flute':
+        synth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.1, decay: 0.2, sustain: 0.6, release: 0.8 }
+        }).connect(masterGainRef.current);
+        console.log(`✓ Created Flute synthesizer for track ${track.id}`);
+        break;
+      case 'organ':
+        synth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "square" },
+          envelope: { attack: 0.02, decay: 0.1, sustain: 0.95, release: 0.3 }
+        }).connect(masterGainRef.current);
+        console.log(`✓ Created Organ synthesizer for track ${track.id}`);
         break;
       case 'synth':
         synth = new Tone.PolySynth(Tone.Synth, {
           oscillator: { type: "sawtooth" },
           envelope: { attack: 0.005, decay: 0.3, sustain: 0.4, release: 0.8 }
         }).connect(masterGainRef.current);
+        console.log(`✓ Created Synth synthesizer for track ${track.id}`);
         break;
       default:
+        console.warn(`⚠️  Unknown instrument "${track.instrument}" for track ${track.id}, using default piano`);
         synth = new Tone.PolySynth().connect(masterGainRef.current);
     }
 
@@ -232,7 +261,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
       // Create synthesizer and part
       track.synth = createSynthesizer(track);
       
-      if (track.instrument === 'drums') {
+      if (track.instrument.toLowerCase() === 'drums') {
         // For drums, trigger noise bursts
         track.part = new Tone.Part((time, noteData) => {
           if (track.synth && !track.muted) {
@@ -385,7 +414,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
           //   'saxophone': 64, 'synth': 80
           // };
           
-          if (track.instrument === 'drums') {
+          if (track.instrument.toLowerCase() === 'drums') {
             midiTrack.channel = 9; // Drum channel
           } else {
             midiTrack.channel = index % 15; // Avoid drum channel (9)
@@ -399,7 +428,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, onTrackU
           
           // Add all notes from this track
           track.notes.forEach(note => {
-            if (track.instrument === 'drums') {
+            if (track.instrument.toLowerCase() === 'drums') {
               // For drums, use specific drum note mappings
               midiTrack.addNote({
                 name: 'C2', // Bass drum
