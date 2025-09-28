@@ -48,7 +48,7 @@ def health_check():
             '/api/health'
         ]
     })
-
+#ROUTE THAT IS ACTUALLY USED 
 @app.route('/api/transcribe-single', methods=['POST'])
 def transcribe_single():
     """
@@ -123,74 +123,9 @@ def transcribe_single():
             'details': str(e)
         }), 500
 
-@app.route('/api/transcribe-vocals', methods=['POST'])
-def transcribe_vocals():
-    """
-    Route for test_vocals_midi.py functionality - vocals-only processing
-    """
-    try:
-        if 'audio' not in request.files:
-            return jsonify({'error': 'No audio file provided'}), 400
-        
-        audio_file = request.files['audio']
-        
-        if audio_file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if not allowed_file(audio_file.filename):
-            return jsonify({'error': 'File type not allowed. Use WAV, MP3, FLAC, or M4A'}), 400
-        
-        # Save the uploaded file
-        timestamp = int(time.time() * 1000)
-        filename = secure_filename(audio_file.filename)
-        audio_path = os.path.join(UPLOAD_FOLDER, f"{timestamp}_{filename}")
-        audio_file.save(audio_path)
-        
-        print(f"Processing vocals file: {filename}")
-        
-        # Process using test_vocals_midi functionality
-        try:
-            output_files = test_vocals_midi.process_vocals_file(audio_path)
-            
-            if output_files and len(output_files) > 0:
-                # Move generated files to upload folder for serving
-                served_files = []
-                for midi_file in output_files:
-                    if os.path.exists(midi_file):
-                        served_name = f"{timestamp}_vocals_{os.path.basename(midi_file)}"
-                        served_path = os.path.join(UPLOAD_FOLDER, served_name)
-                        shutil.move(midi_file, served_path)
-                        served_files.append(served_name)
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Vocals transcription completed successfully',
-                    'inputFile': filename,
-                    'midiFiles': served_files,
-                    'originalMidi': served_files[0] if len(served_files) > 0 else None,
-                    'cleanMidi': served_files[1] if len(served_files) > 1 else None
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': 'Failed to generate vocals MIDI files'
-                }), 500
-                
-        except Exception as e:
-            print(f"Error during vocals transcription: {str(e)}")
-            return jsonify({
-                'success': False,
-                'error': 'Vocals transcription failed',
-                'details': str(e)
-            }), 500
-    
-    except Exception as e:
-        print(f"Error in transcribe_vocals: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to process vocals file',
-            'details': str(e)
-        }), 500
+
+
+#ROUTE THAT IS ACTUALLY USED 
 
 @app.route('/api/transcribe-dual', methods=['POST'])
 def transcribe_dual():
