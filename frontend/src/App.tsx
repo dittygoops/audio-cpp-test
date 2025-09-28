@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import TrackList from './components/TrackList';
+import MidiPlayer from './components/MidiPlayer';
+import AudioPlayer from './components/AudioPlayer';
 import { combineMidiFiles, downloadMidiFile } from './services/api';
 import './App.css';
 
@@ -7,6 +9,7 @@ function App() {
   const [isCombining, setIsCombining] = useState(false);
   const [combineError, setCombineError] = useState<string>('');
   const [combinedMidiPath, setCombinedMidiPath] = useState<string>('');
+  const [combinedWavPath, setCombinedWavPath] = useState<string>('');
   const [midiFiles, setMidiFiles] = useState<string[]>([]);
 
   const handleCombineMidi = async () => {
@@ -21,8 +24,9 @@ function App() {
     try {
       const result = await combineMidiFiles(midiFiles);
 
-      if (result.success && result.combinedPath) {
-        setCombinedMidiPath(result.combinedPath);
+      if (result.success && (result.combinedPath || result.combinedMidiPath)) {
+        setCombinedMidiPath(result.combinedMidiPath || result.combinedPath || '');
+        setCombinedWavPath(result.combinedWavPath || '');
       } else {
         setCombineError(result.error || 'Failed to combine MIDI files');
       }
@@ -44,9 +48,16 @@ function App() {
   };
 
   const handleMidiFilesUpdate = (files: string[]) => {
-    setMidiFiles(files);
-    setCombineError('');
-    setCombinedMidiPath('');
+    setMidiFiles(prevFiles => {
+      // Only clear combined files if the number of files decreased (tracks were removed)
+      // or if this is a significant change in the file list
+      if (files.length < prevFiles.length) {
+        setCombinedMidiPath('');
+        setCombinedWavPath('');
+        setCombineError('');
+      }
+      return files;
+    });
   };
 
   return (
@@ -112,9 +123,12 @@ function App() {
                       MIDI files combined successfully!
                     </span>
                   </div>
-                  <p className="text-green-600 text-sm mt-1">
-                    File: {combinedMidiPath.split('/').pop()}
-                  </p>
+                  <div className="text-green-600 text-sm mt-1 space-y-1">
+                    <p>MIDI File: {combinedMidiPath.split('/').pop()}</p>
+                    {combinedWavPath && (
+                      <p>Audio File: {combinedWavPath.split('/').pop()}</p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -139,13 +153,24 @@ function App() {
                 </button>
 
                 {combinedMidiPath && (
-                  <button
-                    onClick={handleDownload}
-                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
-                  >
-                    <span>⬇️</span>
-                    <span>Download Combined MIDI</span>
-                  </button>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={handleDownload}
+                      className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                    >
+                      <span>⬇️</span>
+                      <span>Download MIDI</span>
+                    </button>
+                    {combinedWavPath && (
+                      <button
+                        onClick={() => downloadMidiFile(combinedWavPath)}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                      >
+                        <span>⬇️</span>
+                        <span>Download Audio</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -153,6 +178,44 @@ function App() {
                 <p className="text-sm text-gray-600 mt-2">
                   You need at least 2 MIDI files to combine them
                 </p>
+              )}
+
+              {/* Combined File Players */}
+              {(combinedMidiPath || combinedWavPath) && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                    Preview Combined Files
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* MIDI Player */}
+                    {combinedMidiPath && (
+                      <div>
+                        <h5 className="text-md font-medium text-gray-700 mb-2">
+                          MIDI Preview
+                        </h5>
+                        <MidiPlayer
+                          midiPath={combinedMidiPath}
+                          disabled={false}
+                        />
+                      </div>
+                    )}
+
+                    {/* Audio Player */}
+                    {combinedWavPath && (
+                      <div>
+                        <h5 className="text-md font-medium text-gray-700 mb-2">
+                          Audio Preview
+                        </h5>
+                        <AudioPlayer
+                          audioPath={combinedWavPath}
+                          disabled={false}
+                          title="Combined Audio"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           )}

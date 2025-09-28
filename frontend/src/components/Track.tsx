@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import AudioRecorder from './AudioRecorder';
-import MidiPlayer from './MIDIPlayer';
+import MidiPlayer from './MidiPlayer';
 import { convertWavToMidi, MIDI_INSTRUMENTS } from '../services/api';
 
 interface TrackProps {
