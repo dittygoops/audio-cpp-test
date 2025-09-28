@@ -37,18 +37,13 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
     case '0': // Piano - Rich harmonics with quick attack
       return new Tone.PolySynth(Tone.Synth, {
         oscillator: { 
-          type: "fatsawtooth",
-          spread: 20
+          type: "fatsawtooth"
         },
         envelope: { 
           attack: 0.005, 
           decay: 0.3, 
           sustain: 0.2, 
           release: 2.0 
-        },
-        filter: {
-          frequency: 3000,
-          type: "lowpass"
         }
       }).toDestination();
     
@@ -85,29 +80,19 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
         },
         modulation: { 
           type: "square" 
-        },
-        filter: {
-          frequency: 800,
-          type: "lowpass"
         }
       }).toDestination();
     
     case '128': // Drums - Noise-based with sharp attack
       return new Tone.NoiseSynth({
         noise: { 
-          type: "brown",
-          fadeIn: 0,
-          fadeOut: 0.01
+          type: "brown"
         },
         envelope: { 
           attack: 0.001, 
           decay: 0.15, 
           sustain: 0.0,
           release: 0.1
-        },
-        filter: {
-          frequency: 2000,
-          type: "highpass"
         }
       }).toDestination();
     
@@ -124,8 +109,7 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
           release: 0.8 
         },
         modulation: {
-          type: "sine",
-          frequency: 6
+          type: "sine"
         },
         modulationEnvelope: {
           attack: 0.3,
@@ -148,18 +132,13 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
           release: 1.2 
         },
         modulation: {
-          type: "sine",
-          frequency: 4
+          type: "sine"
         },
         modulationEnvelope: {
           attack: 0.4,
           decay: 0.3,
           sustain: 0.7,
           release: 0.8
-        },
-        filter: {
-          frequency: 1500,
-          type: "lowpass"
         }
       }).toDestination();
     
@@ -181,11 +160,6 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
           decay: 0.3,
           sustain: 0.6,
           release: 0.4
-        },
-        filter: {
-          frequency: 4000,
-          type: "highpass",
-          Q: 2
         }
       }).toDestination();
     
@@ -207,60 +181,37 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
           decay: 0.4,
           sustain: 0.5,
           release: 0.6
-        },
-        filter: {
-          frequency: 2500,
-          type: "bandpass",
-          Q: 3
         }
       }).toDestination();
     
     case '73': // Flute - Pure, breathy tone
       return new Tone.PolySynth(Tone.Synth, {
         oscillator: { 
-          type: "sine",
-          harmonicity: 1.5
+          type: "sine"
         },
         envelope: { 
           attack: 0.1, 
           decay: 0.2, 
           sustain: 0.6, 
           release: 0.8 
-        },
-        filter: {
-          frequency: 3500,
-          type: "lowpass",
-          rolloff: -12
-        },
-        filterEnvelope: {
-          attack: 0.2,
-          decay: 0.3,
-          sustain: 0.8,
-          release: 1.0,
-          baseFrequency: 2000,
-          octaves: 2
         }
       }).toDestination();
     
     case '16': // Organ - Sustained harmonic-rich sound
-      return new Tone.PolySynth(Tone.FatOscillator, {
-        type: "square",
-        spread: 40,
-        count: 4,
+      return new Tone.PolySynth(Tone.Synth, {
+        oscillator: {
+          type: "square"
+        },
         envelope: { 
           attack: 0.02, 
           decay: 0.1, 
           sustain: 0.95, 
           release: 0.3 
-        },
-        filter: {
-          frequency: 2000,
-          type: "lowpass"
         }
       }).toDestination();
     
     case '80': // Synth - Electronic characteristic
-      return new Tone.PolySynth(Tone.MonoSynth, {
+      return new Tone.PolySynth(Tone.Synth, {
         oscillator: {
           type: "sawtooth"
         },
@@ -269,37 +220,19 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
           decay: 0.3, 
           sustain: 0.4, 
           release: 0.8 
-        },
-        filter: {
-          frequency: 1200,
-          type: "lowpass",
-          Q: 8
-        },
-        filterEnvelope: {
-          attack: 0.02,
-          decay: 0.4,
-          sustain: 0.2,
-          release: 0.6,
-          baseFrequency: 200,
-          octaves: 4
         }
       }).toDestination();
     
     default: // Default to piano
       return new Tone.PolySynth(Tone.Synth, {
         oscillator: { 
-          type: "fatsawtooth",
-          spread: 20
+          type: "triangle"
         },
         envelope: { 
-          attack: 0.005, 
-          decay: 0.3, 
-          sustain: 0.2, 
-          release: 2.0 
-        },
-        filter: {
-          frequency: 3000,
-          type: "lowpass"
+          attack: 0.02, 
+          decay: 0.1, 
+          sustain: 0.3, 
+          release: 1.0 
         }
       }).toDestination();
   }
