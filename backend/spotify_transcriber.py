@@ -239,6 +239,56 @@ class AudioToMIDITranscriber:
         
         return midi_data
     
+    def set_instrument_program(self, midi_data, instrument_name):
+        """
+        Set the MIDI program (instrument) for all tracks in the MIDI data
+        
+        Args:
+            midi_data: pretty_midi.PrettyMIDI object
+            instrument_name (str): Name of the instrument to set
+            
+        Returns:
+            pretty_midi.PrettyMIDI: Modified MIDI data with instrument set
+        """
+        # MIDI program mapping (same as in dual_instrument_recorder.py)
+        instrument_programs = {
+            'piano': 0,           # Acoustic Grand Piano
+            'guitar': 24,         # Acoustic Guitar (nylon)
+            'bass': 32,           # Acoustic Bass
+            'drums': 128,         # Drums (channel 9)
+            'violin': 40,         # Violin
+            'cello': 42,          # Cello
+            'trumpet': 56,        # Trumpet
+            'saxophone': 64,      # Soprano Sax
+            'flute': 73,          # Flute
+            'organ': 16,          # Drawbar Organ
+            'synth': 80,          # Lead 1 (square)
+        }
+        
+        # Determine MIDI program based on instrument name
+        program = 0  # Default to piano
+        name_lower = instrument_name.lower().replace(' ', '_')
+        
+        for key, prog in instrument_programs.items():
+            if key in name_lower:
+                program = prog
+                break
+        
+        # Set instrument for all tracks
+        for instrument in midi_data.instruments:
+            if program == 128:  # Drums
+                instrument.is_drum = True
+                instrument.program = 0  # Drums use program 0 on channel 9
+            else:
+                instrument.is_drum = False
+                instrument.program = program
+            
+            # Set track name
+            instrument.name = instrument_name
+        
+        print(f"Set instrument to: {instrument_name} (Program: {program})")
+        return midi_data
+
     def cleanup(self):
         """Clean up audio resources"""
         self.audio.terminate()
@@ -303,13 +353,14 @@ class AudioToMIDITranscriber:
         finally:
             self.cleanup()
     
-    def transcribe_file(self, audio_file, output_midi=None):
+    def transcribe_file(self, audio_file, output_midi=None, instrument_name=None):
         """
         Transcribe an existing audio file to MIDI (both original and noise-reduced versions)
         
         Args:
             audio_file (str): Path to existing audio file
             output_midi (str): Base path for output MIDI files (optional)
+            instrument_name (str): Name of the instrument to set in MIDI (optional)
             
         Returns:
             list: Paths to generated MIDI files [original_midi, clean_midi]
@@ -338,6 +389,12 @@ class AudioToMIDITranscriber:
             
             midi_data_clean = self.preserve_natural_timing(midi_data_clean)
             midi_data_clean = self.add_pitch_bend_from_audio(midi_data_clean, noise_reduced_file)
+            
+            # Step 3.5: Set instrument if specified
+            if instrument_name:
+                print(f"\n=== Setting Instrument: {instrument_name} ===")
+                midi_data_original = self.set_instrument_program(midi_data_original, instrument_name)
+                midi_data_clean = self.set_instrument_program(midi_data_clean, instrument_name)
             
             # Step 4: Save MIDI files for both versions
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

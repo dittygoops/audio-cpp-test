@@ -87,7 +87,13 @@ def transcribe_single():
         if not audio_file.filename.lower().endswith('.wav'):
             return jsonify({'error': 'Only .wav files are supported'}), 400
         
+        # Get instrument name from form data
+        instrument_name = request.form.get('instrument', 'Unknown')
+        if not instrument_name or instrument_name.strip() == '':
+            instrument_name = 'Unknown'
+        
         print(f"Processing audio file: {audio_file.filename}")
+        print(f"Instrument: {instrument_name}")
         
         # Save the uploaded file to a temporary location
         timestamp = int(time.time() * 1000)
@@ -118,7 +124,7 @@ def transcribe_single():
         
         try:
             # Use transcribe_file method which returns list of MIDI files
-            output_files = transcriber.transcribe_file(temp_audio_path)
+            output_files = transcriber.transcribe_file(temp_audio_path, instrument_name=instrument_name)
             
             if output_files and len(output_files) > 0:
                 # Use the clean MIDI file (second one) if available, otherwise use the first
