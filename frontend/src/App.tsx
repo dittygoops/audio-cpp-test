@@ -26,9 +26,10 @@ function App() {
     try {
       const result = await combineMidiFiles(midiFiles);
 
-      if (result.success && (result.combinedPath || result.combinedMidiPath)) {
-        setCombinedMidiPath(result.combinedMidiPath || result.combinedPath || '');
-        setCombinedWavPath(result.combinedWavPath || '');
+      if (result.success) {
+        // The combined MIDI file is automatically downloaded
+        setCombineError(''); // Clear any previous errors
+        console.log('MIDI files combined successfully');
       } else {
         setCombineError(result.error || 'Failed to combine MIDI files');
       }

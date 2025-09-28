@@ -132,15 +132,22 @@ def transcribe_single():
                 midi_files_to_cleanup = output_files
                 
                 if os.path.exists(primary_midi_file):
-                    print(f"Returning MIDI file: {primary_midi_file}")
+                    print(f"Generated MIDI file: {primary_midi_file}")
                     
-                    # Return the MIDI file directly as a downloadable file
-                    return send_file(
-                        primary_midi_file,
-                        as_attachment=True,
-                        download_name=f"transcribed_{timestamp}.mid",
-                        mimetype='audio/midi'
-                    )
+                    # Move the MIDI file to the uploads directory for serving
+                    final_midi_filename = f"{timestamp}_transcribed.mid"
+                    final_midi_path = os.path.join(UPLOAD_FOLDER, final_midi_filename)
+                    
+                    # Copy the file to uploads directory
+                    shutil.copy2(primary_midi_file, final_midi_path)
+                    print(f"MIDI file saved to: {final_midi_path}")
+                    
+                    # Return JSON response with the file path
+                    return jsonify({
+                        'success': True,
+                        'message': 'MIDI file generated successfully',
+                        'midiPath': final_midi_filename
+                    })
                 else:
                     return jsonify({
                         'success': False,
