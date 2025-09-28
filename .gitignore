@@ -1,5 +1,6 @@
 .venv/
 *.wav
-*venv/
+*venv*/
+
 *.mid
 __pycache__/

@@ -99,6 +99,65 @@ class DualInstrumentRecorder:
         
         return combined_midi
     
+    def process_dual_files(self, piano_file, bass_file):
+        """
+        Process existing piano and bass audio files, then combine into single MIDI file
+        
+        Args:
+            piano_file (str): Path to piano audio file
+            bass_file (str): Path to bass audio file
+            
+        Returns:
+            str: Path to combined MIDI file
+        """
+        try:
+            print("=== Dual Instrument File Processor ===")
+            print("Processing piano and bass files, then combining them into one MIDI file.")
+            print("The MIDI file will have two tracks that can be layered in GarageBand.")
+            print()
+            
+            # Check if files exist
+            if not os.path.exists(piano_file):
+                raise FileNotFoundError(f"Piano file not found: {piano_file}")
+            if not os.path.exists(bass_file):
+                raise FileNotFoundError(f"Bass file not found: {bass_file}")
+            
+            # Process piano file
+            print(f"\n=== Processing Piano File ===")
+            print(f"Piano file: {piano_file}")
+            piano_midi, piano_notes = self.transcriber.detect_pitches(piano_file)
+            print(f"✅ Piano processing complete! Notes detected: {len(piano_notes)}")
+            
+            # Process bass file
+            print(f"\n=== Processing Bass File ===")
+            print(f"Bass file: {bass_file}")
+            bass_midi, bass_notes = self.transcriber.detect_pitches(bass_file)
+            print(f"✅ Bass processing complete! Notes detected: {len(bass_notes)}")
+            
+            # Combine MIDI tracks
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            combined_midi_file = f"piano_bass_combined_{timestamp}.mid"
+            
+            combined_midi = self.combine_midi_tracks(piano_midi, bass_midi, combined_midi_file)
+            
+            # Print final summary
+            print(f"\n=== Processing Complete ===")
+            print(f"Piano file: {piano_file}")
+            print(f"Bass file: {bass_file}")
+            print(f"Combined MIDI: {combined_midi_file}")
+            print(f"Total piano notes: {len(piano_notes)}")
+            print(f"Total bass notes: {len(bass_notes)}")
+            print()
+            print("🎵 You can now import the MIDI file into GarageBand!")
+            print("   - Track 1: Piano (Acoustic Grand Piano)")
+            print("   - Track 2: Bass (Acoustic Bass)")
+            
+            return combined_midi_file
+            
+        except Exception as e:
+            print(f"❌ Error during processing: {e}")
+            return None
+
     def record_dual_instruments(self, duration=15):
         """
         Record both piano and bass, then combine into single MIDI file
@@ -153,33 +212,63 @@ class DualInstrumentRecorder:
 
 def main():
     """Main function"""
-    print("=== Dual Instrument MIDI Recorder ===")
-    print("Records piano and bass separately, combines into GarageBand-compatible MIDI")
-    print()
+    import argparse
     
-    # Get recording duration from user
-    try:
-        duration = int(input("Enter recording duration for each instrument (seconds, default 15): ") or "15")
-    except ValueError:
-        duration = 15
-        print("Using default duration: 15 seconds")
+    parser = argparse.ArgumentParser(description="Dual Instrument MIDI Processor")
+    parser.add_argument("--piano", type=str, help="Path to piano audio file")
+    parser.add_argument("--bass", type=str, help="Path to bass audio file")
+    parser.add_argument("--duration", "-d", type=int, default=15,
+                       help="Recording duration for each instrument (seconds, default: 15)")
+    
+    args = parser.parse_args()
     
     # Create recorder
     recorder = DualInstrumentRecorder()
     
     try:
-        # Record both instruments
-        output_file = recorder.record_dual_instruments(duration)
-        
-        if output_file:
-            print(f"\n✅ Success! Combined MIDI file: {output_file}")
+        if args.piano and args.bass:
+            # Process existing files
+            print("=== Dual Instrument File Processor ===")
+            print("Processing existing piano and bass files, combines into GarageBand-compatible MIDI")
+            print(f"Piano file: {args.piano}")
+            print(f"Bass file: {args.bass}")
+            print()
+            
+            output_file = recorder.process_dual_files(args.piano, args.bass)
+            
+            if output_file:
+                print(f"\n✅ Success! Combined MIDI file: {output_file}")
+            else:
+                print("\n❌ Processing failed!")
         else:
-            print("\n❌ Recording failed!")
+            # Record live instruments
+            print("=== Dual Instrument MIDI Recorder ===")
+            print("Records piano and bass separately, combines into GarageBand-compatible MIDI")
+            print()
+            
+            # Get recording duration from user or use argument
+            duration = args.duration
+            if duration == 15:  # Default value, ask user for confirmation
+                try:
+                    user_duration = input("Enter recording duration for each instrument (seconds, default 15): ")
+                    if user_duration:
+                        duration = int(user_duration)
+                except ValueError:
+                    print("Using default duration: 15 seconds")
+            
+            output_file = recorder.record_dual_instruments(duration)
+            
+            if output_file:
+                print(f"\n✅ Success! Combined MIDI file: {output_file}")
+            else:
+                print("\n❌ Recording failed!")
             
     except KeyboardInterrupt:
-        print("\n\nRecording cancelled by user")
+        print("\n\nOperation cancelled by user")
     except Exception as e:
         print(f"\nError: {e}")
+    finally:
+        recorder.transcriber.cleanup()
 
 if __name__ == "__main__":
     main()
