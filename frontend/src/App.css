@@ -171,6 +171,42 @@
   transition: transform 0.1s ease-out;
 }
 
+/* Shooting Star Animation */
+@keyframes shootingStar {
+  0% {
+    transform: translateX(-100px) translateY(100px) rotate(-45deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.4;
+  }
+  30% {
+    opacity: 0.6;
+  }
+  60% {
+    opacity: 0.3;
+  }
+  85% {
+    opacity: 0.1;
+  }
+  100% {
+    transform: translateX(200px) translateY(-200px) rotate(-45deg);
+    opacity: 0;
+  }
+}
+
+/* Sparkle twinkle animation */
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
 /* Responsive staff positioning */
 @media (max-width: 768px) {
   .musical-staff {

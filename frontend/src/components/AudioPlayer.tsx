@@ -104,14 +104,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     setVolume(parseFloat(e.target.value));
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (audioRef.current) {
-      const newTime = parseFloat(e.target.value);
-      audioRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
   const formatTime = (time: number): string => {
     const mins = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
