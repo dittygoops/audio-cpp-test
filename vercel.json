@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "backend/app.py": {
+      "runtime": "python3.10"
+    }
+  },
   "builds": [
     {
       "src": "backend/app.py",
