@@ -234,9 +234,25 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
 
   if (!midiPath) {
     return (
-      <div className="flex flex-col items-center p-4 border border-gray-200 rounded-lg bg-gray-50">
-        <div className="text-gray-400 mb-2">🎵</div>
-        <p className="text-gray-500 text-sm text-center">
+      <div className="flex flex-col items-center p-4 border border-gray-700 rounded-lg bg-gray-800">
+        <div className="text-gray-400 mb-2">
+          <svg 
+            width="32" 
+            height="32" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className="mx-auto"
+          >
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+        </div>
+        <p className="text-gray-400 text-sm text-center">
           No MIDI file available
         </p>
       </div>
@@ -245,9 +261,25 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center p-4 border border-gray-200 rounded-lg bg-white">
-        <div className="text-blue-500 mb-2">🎵</div>
-        <p className="text-gray-600 text-sm text-center">
+      <div className="flex flex-col items-center p-4 border border-gray-700 rounded-lg bg-gray-800">
+        <div className="text-blue-400 mb-2">
+          <svg 
+            width="32" 
+            height="32" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className="mx-auto animate-pulse"
+          >
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+        </div>
+        <p className="text-gray-300 text-sm text-center">
           Loading MIDI file...
         </p>
       </div>
@@ -256,9 +288,25 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
 
   if (loadError) {
     return (
-      <div className="flex flex-col items-center p-4 border border-red-200 rounded-lg bg-red-50">
-        <div className="text-red-500 mb-2">⚠️</div>
-        <p className="text-red-600 text-sm text-center">
+      <div className="flex flex-col items-center p-4 border border-red-700 rounded-lg bg-red-900/50">
+        <div className="text-red-400 mb-2">
+          <svg 
+            width="32" 
+            height="32" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className="mx-auto"
+          >
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+            <path d="M12 9v4"></path>
+            <path d="m12 17 .01 0"></path>
+          </svg>
+        </div>
+        <p className="text-red-300 text-sm text-center">
           {loadError}
         </p>
       </div>
@@ -266,14 +314,30 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
   }
 
   return (
-    <div className="flex flex-col space-y-4 p-4 border border-gray-200 rounded-lg bg-white">
+    <div className="flex flex-col space-y-4 p-4 border border-gray-700 rounded-lg bg-gray-800">
       <div className="text-center">
-        <div className="text-2xl mb-2">🎵</div>
-        <div className="text-sm text-gray-600">
+        <div className="text-blue-400 mb-2">
+          <svg 
+            width="32" 
+            height="32" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className="mx-auto"
+          >
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+        </div>
+        <div className="text-sm text-gray-300">
           MIDI: {midiPath.split('/').pop()}
         </div>
         {midiRef.current && (
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-xs text-gray-400 mt-1">
             {midiRef.current.tracks.length} track(s), {formatTime(duration)} duration
           </div>
         )}
@@ -281,11 +345,11 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
 
       {/* Progress Bar */}
       <div className="w-full">
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
+        <div className="flex justify-between text-xs text-gray-400 mb-1">
           <span>{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-600 rounded-full h-2">
           <div
             className="bg-blue-600 h-2 rounded-full transition-all duration-100"
             style={{ width: `${progress}%` }}
@@ -298,10 +362,17 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
         <button
           onClick={handleStop}
           disabled={disabled || (!isPlaying && currentTime === 0)}
-          className="p-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-2 text-gray-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
           title="Stop"
         >
-          ⏹️
+          <svg 
+            width="20" 
+            height="20" 
+            viewBox="0 0 24 24" 
+            fill="currentColor"
+          >
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          </svg>
         </button>
 
         <button
@@ -313,13 +384,46 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
               : 'bg-green-600 hover:bg-green-700'
           } ${disabled || !midiRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          {isPlaying ? '⏸️' : '▶️'}
+          {isPlaying ? (
+            <svg 
+              width="24" 
+              height="24" 
+              viewBox="0 0 24 24" 
+              fill="currentColor"
+            >
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+          ) : (
+            <svg 
+              width="24" 
+              height="24" 
+              viewBox="0 0 24 24" 
+              fill="currentColor"
+            >
+              <polygon points="5,3 19,12 5,21"></polygon>
+            </svg>
+          )}
         </button>
       </div>
 
       {/* Volume Control */}
       <div className="flex items-center space-x-2">
-        <span className="text-sm text-gray-600">🔊</span>
+        <div className="text-gray-300">
+          <svg 
+            width="16" 
+            height="16" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <polygon points="11,5 6,9 2,9 2,15 6,15 11,19 11,5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </div>
         <input
           type="range"
           min="0"
@@ -328,14 +432,14 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
           value={volume}
           onChange={handleVolumeChange}
           disabled={disabled}
-          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
+          className="flex-1 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
         />
-        <span className="text-sm text-gray-600 w-8">
+        <span className="text-sm text-gray-300 w-8">
           {Math.round(volume * 100)}%
         </span>
       </div>
 
-      <div className="text-xs text-gray-500 text-center">
+      <div className="text-xs text-gray-400 text-center">
         {midiRef.current ? 'Click play to hear your MIDI file' : 'Loading MIDI data...'}
       </div>
     </div>
