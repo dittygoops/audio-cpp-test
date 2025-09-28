@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AudioRecorder from './AudioRecorder';
 import MidiPlayer from './MidiPlayer';
+import InstrumentSearch from './InstrumentSearch';
 import { convertWavToMidi, MIDI_INSTRUMENTS } from '../services/api';
 
 interface TrackProps {
@@ -32,10 +33,10 @@ const Track: React.FC<TrackProps> = ({
     conversionError: undefined,
   });
 
-  const handleInstrumentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleInstrumentChange = (value: string) => {
     setTrackData(prev => ({
       ...prev,
-      instrument: e.target.value,
+      instrument: value,
     }));
   };
 
@@ -83,7 +84,6 @@ const Track: React.FC<TrackProps> = ({
     }));
   };
 
-  const selectedInstrument = MIDI_INSTRUMENTS.find(inst => inst.value === trackData.instrument);
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
@@ -107,22 +107,10 @@ const Track: React.FC<TrackProps> = ({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Select Instrument
         </label>
-        <select
+        <InstrumentSearch
           value={trackData.instrument}
           onChange={handleInstrumentChange}
-          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          {MIDI_INSTRUMENTS.map(instrument => (
-            <option key={instrument.value} value={instrument.value}>
-              {instrument.label}
-            </option>
-          ))}
-        </select>
-        {selectedInstrument && (
-          <div className="mt-1 text-sm text-gray-600">
-            Selected: {selectedInstrument.label}
-          </div>
-        )}
+        />
       </div>
 
       {/* Recording Section */}
