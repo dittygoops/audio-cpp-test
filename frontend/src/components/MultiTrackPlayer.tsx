@@ -2,6 +2,67 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 
+// Helper function to convert note name to frequency
+const noteToFrequency = (note: string): number => {
+  const noteMap: { [key: string]: number } = {
+    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
+    'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+  };
+  
+  const match = note.match(/^([A-G][#b]?)(\d+)$/);
+  if (!match) return 440; // Default to A4
+  
+  const noteName = match[1];
+  const octave = parseInt(match[2]);
+  const noteNumber = noteMap[noteName];
+  
+  if (noteNumber === undefined) return 440;
+  
+  // A4 = 440Hz is note number 69 in MIDI
+  const midiNumber = (octave + 1) * 12 + noteNumber;
+  return 440 * Math.pow(2, (midiNumber - 69) / 12);
+};
+
+// Helper function to convert AudioBuffer to WAV blob
+const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+  const length = buffer.length * buffer.numberOfChannels * 2;
+  const arrayBuffer = new ArrayBuffer(44 + length);
+  const view = new DataView(arrayBuffer);
+  
+  // WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + length, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, buffer.numberOfChannels, true);
+  view.setUint32(24, buffer.sampleRate, true);
+  view.setUint32(28, buffer.sampleRate * buffer.numberOfChannels * 2, true);
+  view.setUint16(32, buffer.numberOfChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, length, true);
+  
+  // Convert audio data
+  let offset = 44;
+  for (let i = 0; i < buffer.length; i++) {
+    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+      view.setInt16(offset, sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+};
+
 interface Track {
   id: string;
   synth: Tone.PolySynth | Tone.NoiseSynth | null;
@@ -33,6 +94,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
   const [masterVolume, setMasterVolume] = useState(70);
   const [progress, setProgress] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   const masterGainRef = useRef<Tone.Gain | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
@@ -471,10 +533,9 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
     if (tracks.length === 0 || !tracks.some(track => track.loaded)) return;
     
     setIsRecording(true);
+    setExportProgress(0);
     
     try {
-      await Tone.start();
-      
       // Calculate total duration
       let maxDuration = 0;
       tracks.forEach(track => {
@@ -484,53 +545,156 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
         }
       });
       
-      // Create a recorder
-      const recorder = new Tone.Recorder();
+      console.log(`Starting offline audio export (${maxDuration.toFixed(2)}s)...`);
+      setExportProgress(10);
       
-      // Connect master gain to recorder
-      if (masterGainRef.current) {
-        masterGainRef.current.connect(recorder);
+      // Create offline audio context for silent rendering
+      const sampleRate = 44100;
+      const duration = Math.ceil(maxDuration + 1);
+      const offlineContext = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
+      
+      setExportProgress(20);
+      
+      // Create synthesizers connected to offline context
+      interface OfflineSynth {
+        context: OfflineAudioContext;
+        gainNode: GainNode;
+        triggerAttackRelease: (note: string, duration: number, time: number, velocity?: number) => void;
+      }
+      const offlineSynths: OfflineSynth[] = [];
+      const offlineGain = offlineContext.createGain();
+      offlineGain.gain.value = masterVolume / 100;
+      offlineGain.connect(offlineContext.destination);
+      
+      setExportProgress(30);
+      
+      // Create Web Audio API synthesizers for each track
+      for (const track of tracks) {
+        if (!track.loaded || track.muted || track.notes.length === 0) continue;
+        
+        const gainNode = offlineContext.createGain();
+        gainNode.gain.value = track.volume;
+        gainNode.connect(offlineGain);
+        
+        // Create simple oscillator-based synth for offline rendering
+        const synthNode: OfflineSynth = {
+          context: offlineContext,
+          gainNode,
+          triggerAttackRelease: (note: string, duration: number, time: number, velocity: number = 1) => {
+            if (track.instrument.toLowerCase() === 'drums') {
+              // Create noise for drums
+              const bufferSize = Math.floor(duration * sampleRate);
+              const buffer = offlineContext.createBuffer(1, bufferSize, sampleRate);
+              const data = buffer.getChannelData(0);
+              for (let i = 0; i < bufferSize; i++) {
+                data[i] = (Math.random() * 2 - 1) * velocity * 0.3;
+              }
+              const source = offlineContext.createBufferSource();
+              source.buffer = buffer;
+              source.connect(gainNode);
+              source.start(time);
+            } else {
+              // Create oscillator for melodic instruments
+              const oscillator = offlineContext.createOscillator();
+              const noteGain = offlineContext.createGain();
+              
+              // Set oscillator type based on instrument
+              const instrument = track.instrument.toLowerCase();
+              switch (instrument) {
+                case 'piano':
+                  oscillator.type = 'triangle';
+                  break;
+                case 'guitar':
+                case 'bass':
+                  oscillator.type = 'sawtooth';
+                  break;
+                case 'violin':
+                case 'cello':
+                  oscillator.type = 'sawtooth';
+                  break;
+                case 'trumpet':
+                case 'saxophone':
+                  oscillator.type = 'square';
+                  break;
+                case 'flute':
+                  oscillator.type = 'sine';
+                  break;
+                case 'organ':
+                  oscillator.type = 'square';
+                  break;
+                default:
+                  oscillator.type = 'triangle';
+              }
+              
+              // Convert note name to frequency
+              const frequency = noteToFrequency(note);
+              oscillator.frequency.value = frequency;
+              
+              // Create envelope
+              noteGain.gain.setValueAtTime(0, time);
+              noteGain.gain.linearRampToValueAtTime(velocity * 0.3, time + 0.01);
+              noteGain.gain.exponentialRampToValueAtTime(velocity * 0.1, time + duration * 0.3);
+              noteGain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+              
+              oscillator.connect(noteGain);
+              noteGain.connect(gainNode);
+              
+              oscillator.start(time);
+              oscillator.stop(time + duration);
+            }
+          }
+        };
+        
+        offlineSynths.push(synthNode);
       }
       
-      // Start recording
-      recorder.start();
+      setExportProgress(50);
       
-      // Stop all current playback and reset transport
+      // Schedule all notes
+      let noteCount = 0;
+      let totalNotes = 0;
       tracks.forEach(track => {
-        if (track.part) {
-          track.part.stop();
-        }
-      });
-      Tone.Transport.stop();
-      Tone.Transport.position = 0;
-      
-      // Schedule all tracks for recording
-      tracks.forEach(track => {
-        if (track.loaded && !track.muted && track.part) {
-          track.part.start(0);
+        if (track.loaded && !track.muted) {
+          totalNotes += track.notes.length;
         }
       });
       
-      // Start transport
-      Tone.Transport.start();
+      for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
+        const track = tracks[trackIndex];
+        if (!track.loaded || track.muted || track.notes.length === 0) continue;
+        
+        const synth = offlineSynths.find(s => s !== undefined);
+        if (!synth) continue;
+        
+        track.notes.forEach(note => {
+          try {
+            synth.triggerAttackRelease(note.note, parseFloat(note.duration) || 0.5, note.time, note.velocity || 0.8);
+            noteCount++;
+            
+            // Update progress for note scheduling
+            if (noteCount % 10 === 0) {
+              const noteProgress = (noteCount / totalNotes) * 30; // 30% of progress for scheduling
+              setExportProgress(50 + noteProgress);
+            }
+          } catch (error) {
+            console.warn('Error scheduling note:', note, error);
+          }
+        });
+      }
       
-      // Wait for the duration to complete
-      await new Promise(resolve => setTimeout(resolve, (maxDuration + 1) * 1000));
+      setExportProgress(80);
+      console.log(`Scheduled ${noteCount} notes for offline rendering...`);
       
-      // Stop recording
-      const recordedBlob = await recorder.stop();
+      // Render the audio offline
+      const renderedBuffer = await offlineContext.startRendering();
+      setExportProgress(90);
       
-      // Stop all tracks and reset transport
-      tracks.forEach(track => {
-        if (track.part) {
-          track.part.stop();
-        }
-      });
-      Tone.Transport.stop();
-      Tone.Transport.position = 0;
+      // Convert to WAV blob
+      const wavBlob = audioBufferToWav(renderedBuffer);
+      setExportProgress(95);
       
-      // Download the recorded audio
-      const url = window.URL.createObjectURL(recordedBlob);
+      // Download the file
+      const url = window.URL.createObjectURL(wavBlob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'combined_tracks.wav';
@@ -539,13 +703,19 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      console.log('Combined WAV downloaded successfully');
+      setExportProgress(100);
+      console.log('Combined WAV exported successfully (offline rendering)');
+      
+      // Reset progress after a short delay
+      setTimeout(() => setExportProgress(0), 2000);
+      
     } catch (error) {
-      console.error('Error downloading combined WAV:', error);
+      console.error('Error exporting combined WAV:', error);
+      setExportProgress(0);
     } finally {
       setIsRecording(false);
     }
-  }, [tracks]);
+  }, [tracks, masterVolume]);
 
   const hasLoadedTracks = tracks.some(track => track.loaded);
 
@@ -709,31 +879,56 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
               </div>
             </button>
 
-            <button
-              onClick={downloadCombinedWAV}
-              disabled={isPlaying || isRecording}
-              className={`px-6 py-3 rounded-lg font-semibold text-white transition-all ${
-                !isPlaying && !isRecording
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
-                  : 'bg-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {isRecording ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin">⟳</div>
-                  <span>Recording...</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7,10 12,15 17,10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                  <span>Export Audio</span>
+            <div className="flex flex-col items-center space-y-2">
+              <button
+                onClick={downloadCombinedWAV}
+                disabled={isPlaying || isRecording}
+                className={`px-6 py-3 rounded-lg font-semibold text-white transition-all ${
+                  !isPlaying && !isRecording
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-1'
+                    : 'bg-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {isRecording ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin">⟳</div>
+                    <span>Exporting...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7,10 12,15 17,10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Export Audio</span>
+                  </div>
+                )}
+              </button>
+              
+              {/* Export Progress Bar */}
+              {isRecording && exportProgress > 0 && (
+                <div className="w-full max-w-xs">
+                  <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
+                    <span>Exporting...</span>
+                    <span>{exportProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-600 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-full transition-all duration-300 ease-out"
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1 text-center">
+                    {exportProgress < 30 ? 'Preparing...' :
+                     exportProgress < 50 ? 'Creating synthesizers...' :
+                     exportProgress < 80 ? 'Scheduling notes...' :
+                     exportProgress < 95 ? 'Rendering audio...' :
+                     exportProgress < 100 ? 'Finalizing...' : 'Complete!'}
+                  </div>
                 </div>
               )}
-            </button>
+            </div>
           </div>
         )}
       </div>
