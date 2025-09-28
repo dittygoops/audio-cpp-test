@@ -27,6 +27,7 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const synthRef = useRef<Tone.PolySynth | Tone.NoiseSynth | null>(null);
+  const multiTrackSynthsRef = useRef<(Tone.PolySynth | Tone.NoiseSynth)[]>([]);
   const midiRef = useRef<Midi | null>(null);
   const intervalRef = useRef<number | null>(null);
   const isInitializedRef = useRef(false);
@@ -238,6 +239,54 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
   }
 };
 
+// Create synthesizers for multi-track MIDI files
+const createMultiTrackSynths = (midi: Midi): (Tone.PolySynth | Tone.NoiseSynth)[] => {
+  const synths: (Tone.PolySynth | Tone.NoiseSynth)[] = [];
+  
+  midi.tracks.forEach((track, index) => {
+    // If track has notes, create a synthesizer for it
+    if (track.notes.length > 0) {
+      // Determine instrument based on MIDI track info
+      let instrumentValue = '0'; // Default to piano
+      
+      // Try to get instrument from track
+      if (track.instrument && track.instrument.number !== undefined) {
+        // Map MIDI instrument numbers to our instrument values
+        const midiInstrument = track.instrument.number;
+        if (midiInstrument >= 0 && midiInstrument <= 7) instrumentValue = '0'; // Piano family
+        else if (midiInstrument >= 24 && midiInstrument <= 31) instrumentValue = '24'; // Guitar family
+        else if (midiInstrument >= 32 && midiInstrument <= 39) instrumentValue = '32'; // Bass family
+        else if (midiInstrument >= 40 && midiInstrument <= 47) instrumentValue = '40'; // Violin family
+        else if (midiInstrument >= 56 && midiInstrument <= 63) instrumentValue = '56'; // Trumpet family
+        else if (midiInstrument >= 64 && midiInstrument <= 71) instrumentValue = '64'; // Saxophone family
+        else if (midiInstrument >= 72 && midiInstrument <= 79) instrumentValue = '73'; // Flute family
+        else if (midiInstrument >= 16 && midiInstrument <= 23) instrumentValue = '16'; // Organ family
+        else if (midiInstrument >= 80 && midiInstrument <= 103) instrumentValue = '80'; // Synth family
+        else if (track.channel === 9 || midiInstrument >= 128) instrumentValue = '128'; // Drums
+      } 
+      // Check if it's the drum channel (channel 9 in MIDI, 0-indexed)
+      else if (track.channel === 9) {
+        instrumentValue = '128'; // Drums
+      }
+      // For combined tracks, try to infer from track index/name
+      else {
+        // Use different instruments for different tracks to create variety
+        const instrumentOptions = ['0', '24', '32', '40', '56', '64', '73', '16', '80'];
+        instrumentValue = instrumentOptions[index % instrumentOptions.length];
+      }
+      
+      console.log(`Track ${index}: Creating synth for instrument ${instrumentValue} (MIDI instrument: ${track.instrument?.number}, channel: ${track.channel})`);
+      
+      const synth = createInstrumentSynth(instrumentValue);
+      synth.volume.value = Tone.gainToDb(0.7); // Set volume
+      synths.push(synth);
+    }
+  });
+  
+  console.log(`Created ${synths.length} synthesizers for ${midi.tracks.length} tracks`);
+  return synths;
+};
+
   // Initialize Tone.js synth based on instrument
   useEffect(() => {
     const initializeSynth = async () => {
@@ -264,6 +313,12 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
       if (synthRef.current) {
         synthRef.current.dispose();
       }
+      // Cleanup multi-track synthesizers
+      multiTrackSynthsRef.current.forEach(synth => {
+        synth.dispose();
+      });
+      multiTrackSynthsRef.current = [];
+      
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -318,11 +373,27 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
         setDuration(midi.duration);
         setCurrentTime(0);
         
+        // Clean up existing multi-track synthesizers
+        multiTrackSynthsRef.current.forEach(synth => {
+          synth.dispose();
+        });
+        
+        // Create synthesizers for multi-track playback if there are multiple tracks with notes
+        const tracksWithNotes = midi.tracks.filter(track => track.notes.length > 0);
+        if (tracksWithNotes.length > 1) {
+          console.log(`Multi-track MIDI detected: ${tracksWithNotes.length} tracks with notes`);
+          multiTrackSynthsRef.current = createMultiTrackSynths(midi);
+        } else {
+          multiTrackSynthsRef.current = [];
+        }
+        
         console.log('MIDI loaded successfully:', {
           url: fullUrl,
           duration: midi.duration,
           tracks: midi.tracks.length,
-          name: midi.name
+          tracksWithNotes: tracksWithNotes.length,
+          name: midi.name,
+          multiTrackMode: multiTrackSynthsRef.current.length > 0
         });
       } catch (error) {
         console.error('Error loading MIDI file:', error);
@@ -342,39 +413,86 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
     if (synthRef.current) {
       synthRef.current.volume.value = Tone.gainToDb(volume);
     }
+    // Update volume for multi-track synthesizers
+    multiTrackSynthsRef.current.forEach(synth => {
+      synth.volume.value = Tone.gainToDb(volume);
+    });
   }, [volume]);
 
   const scheduleNotes = useCallback(() => {
-    if (!midiRef.current || !synthRef.current) return;
+    if (!midiRef.current) return;
 
     // Clear any existing scheduled events
     Tone.Transport.cancel();
 
-    // Schedule all notes from all tracks
-    midiRef.current.tracks.forEach((track) => {
-      track.notes.forEach((note) => {
-        Tone.Transport.schedule((time) => {
-          if (synthRef.current) {
-            if (instrument === '128') {
-              // For drums, just trigger the noise
-              (synthRef.current as Tone.NoiseSynth).triggerAttackRelease(note.duration, time, note.velocity);
-            } else {
-              // For all other instruments, use normal note triggering
-              (synthRef.current as Tone.PolySynth).triggerAttackRelease(
-                note.name,
-                note.duration,
-                time,
-                note.velocity
-              );
-            }
-          }
-        }, note.time);
+    // Check if we have multi-track synthesizers
+    if (multiTrackSynthsRef.current.length > 1) {
+      // Multi-track mode: use different synthesizers for each track
+      console.log('Scheduling notes for multi-track playback');
+      
+      let synthIndex = 0;
+      midiRef.current.tracks.forEach((track) => {
+        if (track.notes.length > 0 && synthIndex < multiTrackSynthsRef.current.length) {
+          const synth = multiTrackSynthsRef.current[synthIndex];
+          console.log(`Scheduling ${track.notes.length} notes for track ${synthIndex}`);
+          
+          track.notes.forEach((note) => {
+            Tone.Transport.schedule((time) => {
+              if (synth) {
+                // Check if it's a NoiseSynth (for drums)
+                if (synth instanceof Tone.NoiseSynth) {
+                  synth.triggerAttackRelease(note.duration, time, note.velocity);
+                } else {
+                  // PolySynth for melodic instruments
+                  (synth as Tone.PolySynth).triggerAttackRelease(
+                    note.name,
+                    note.duration,
+                    time,
+                    note.velocity
+                  );
+                }
+              }
+            }, note.time);
+          });
+          
+          synthIndex++;
+        }
       });
-    });
+    } else {
+      // Single track mode: use the main synthesizer
+      if (!synthRef.current) return;
+      
+      console.log('Scheduling notes for single-track playback');
+      
+      midiRef.current.tracks.forEach((track) => {
+        track.notes.forEach((note) => {
+          Tone.Transport.schedule((time) => {
+            if (synthRef.current) {
+              if (instrument === '128') {
+                // For drums, just trigger the noise
+                (synthRef.current as Tone.NoiseSynth).triggerAttackRelease(note.duration, time, note.velocity);
+              } else {
+                // For all other instruments, use normal note triggering
+                (synthRef.current as Tone.PolySynth).triggerAttackRelease(
+                  note.name,
+                  note.duration,
+                  time,
+                  note.velocity
+                );
+              }
+            }
+          }, note.time);
+        });
+      });
+    }
   }, [instrument]);
 
   const handlePlay = async () => {
-    if (!midiPath || disabled || !midiRef.current || !synthRef.current) return;
+    if (!midiPath || disabled || !midiRef.current) return;
+    
+    // Check if we have any synthesizers available (either single or multi-track)
+    const hasSynths = synthRef.current || multiTrackSynthsRef.current.length > 0;
+    if (!hasSynths) return;
 
     try {
       // Initialize audio context if needed

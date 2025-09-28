@@ -14,6 +14,8 @@ export interface CombineResult {
   combinedPath?: string;
   combinedMidiPath?: string;
   combinedWavPath?: string;
+  combinedMidiBlob?: Blob;
+  combinedMidiUrl?: string;
   error?: string;
   details?: string;
 }
@@ -154,20 +156,15 @@ export const combineMidiFiles = async (midiFilePaths: string[]): Promise<Combine
       }
     }
 
-    // Success - the response is a MIDI file download
+    // Success - return the MIDI blob for display
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'combined.mid';
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
 
     return {
       success: true,
-      message: 'MIDI files combined successfully'
+      message: 'MIDI files combined successfully',
+      combinedMidiBlob: blob,
+      combinedMidiUrl: url
     };
   } catch (error) {
     console.error('Error combining MIDI files:', error);
@@ -197,6 +194,22 @@ export const downloadMidiFile = async (filePath: string) => {
     document.body.removeChild(a);
   } catch (error) {
     console.error('Error downloading file:', error);
+    throw error;
+  }
+};
+
+export const downloadMidiBlob = (blob: Blob, filename: string = 'combined.mid') => {
+  try {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error('Error downloading MIDI blob:', error);
     throw error;
   }
 };

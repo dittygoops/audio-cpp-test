@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import TrackList from './components/TrackList';
 import MidiPlayer from './components/MidiPlayer';
 import AudioPlayer from './components/AudioPlayer';
-import { combineMidiFiles, downloadMidiFile } from './services/api';
+import { combineMidiFiles, downloadMidiBlob } from './services/api';
 import './App.css';
 
 function App() {
   const [isCombining, setIsCombining] = useState(false);
   const [combineError, setCombineError] = useState<string>('');
   const [combinedMidiPath, setCombinedMidiPath] = useState<string>('');
+  const [combinedMidiBlob, setCombinedMidiBlob] = useState<Blob | null>(null);
   const [combinedWavPath, setCombinedWavPath] = useState<string>('');
   const [midiFiles, setMidiFiles] = useState<string[]>([]);
   const [isMusicalScrollActive, setIsMusicalScrollActive] = useState(true);
@@ -26,8 +27,10 @@ function App() {
     try {
       const result = await combineMidiFiles(midiFiles);
 
-      if (result.success) {
-        // The combined MIDI file is automatically downloaded
+      if (result.success && result.combinedMidiBlob && result.combinedMidiUrl) {
+        // Store the combined MIDI for display
+        setCombinedMidiBlob(result.combinedMidiBlob);
+        setCombinedMidiPath(result.combinedMidiUrl);
         setCombineError(''); // Clear any previous errors
         console.log('MIDI files combined successfully');
       } else {
@@ -40,10 +43,10 @@ function App() {
     }
   };
 
-  const handleDownload = async () => {
-    if (combinedMidiPath) {
+  const handleDownloadCombined = () => {
+    if (combinedMidiBlob) {
       try {
-        await downloadMidiFile(combinedMidiPath);
+        downloadMidiBlob(combinedMidiBlob, 'combined.mid');
       } catch (error) {
         setCombineError('Failed to download combined MIDI file');
       }
@@ -459,38 +462,7 @@ function App() {
                 </div>
               )}
 
-              {combinedMidiPath && (
-                <div className="mb-4 p-3 bg-green-900/50 border border-green-700 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <div className="text-green-400">
-                      <svg 
-                        width="20" 
-                        height="20" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                      >
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22,4 12,14.01 9,11.01"></polyline>
-                      </svg>
-                    </div>
-                    <span className="text-green-300 font-medium">
-                      MIDI files combined successfully!
-                    </span>
-                  </div>
-                  <div className="text-green-400 text-sm mt-1 space-y-1">
-                    <p>MIDI File: {combinedMidiPath.split('/').pop()}</p>
-                    {combinedWavPath && (
-                      <p>Audio File: {combinedWavPath.split('/').pop()}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-4 mb-6">
                 <button
                   onClick={handleCombineMidi}
                   disabled={midiFiles.length < 2 || isCombining}
@@ -509,37 +481,40 @@ function App() {
                     'Combine MIDI Files'
                   )}
                 </button>
+              </div>
 
-                {combinedMidiPath && (
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={handleDownload}
-                      className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
-                    >
-                      <svg 
-                        width="20" 
-                        height="20" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                      >
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7,10 12,15 17,10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg>
-                      <span>Download MIDI</span>
-                    </button>
-                    {combinedWavPath && (
+              {/* Combined MIDI Player Section */}
+              {combinedMidiPath && combinedMidiBlob && (
+                <div className="mb-6">
+                  <div className="mb-4 p-3 bg-green-900/50 border border-green-700 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="text-green-400">
+                          <svg 
+                            width="20" 
+                            height="20" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          >
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22,4 12,14.01 9,11.01"></polyline>
+                          </svg>
+                        </div>
+                        <span className="text-green-300 font-medium">
+                          MIDI files combined successfully!
+                        </span>
+                      </div>
                       <button
-                        onClick={() => downloadMidiFile(combinedWavPath)}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                        onClick={handleDownloadCombined}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
                       >
                         <svg 
-                          width="20" 
-                          height="20" 
+                          width="16" 
+                          height="16" 
                           viewBox="0 0 24 24" 
                           fill="none" 
                           stroke="currentColor" 
@@ -551,12 +526,21 @@ function App() {
                           <polyline points="7,10 12,15 17,10"></polyline>
                           <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
-                        <span>Download Audio</span>
+                        <span>Download</span>
                       </button>
-                    )}
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Combined MIDI Player */}
+                  <div className="border border-gray-600 rounded-lg p-4 bg-gray-900/30">
+                    <h4 className="text-md font-medium text-gray-300 mb-3">Combined MIDI Preview</h4>
+                    <MidiPlayer
+                      midiPath={combinedMidiPath}
+                      disabled={false}
+                    />
+                  </div>
+                </div>
+              )}
 
               {midiFiles.length < 2 && (
                 <p className="text-sm text-gray-400 mt-2">
