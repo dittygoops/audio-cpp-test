@@ -373,6 +373,8 @@ class AudioToMIDITranscriber:
 def main():
     """Main function with command line interface"""
     parser = argparse.ArgumentParser(description="Record audio and convert to MIDI using basic-pitch")
+    parser.add_argument("input_file", nargs='?', type=str,
+                       help="Audio file to process (alternatively use --file)")
     parser.add_argument("--duration", "-d", type=int, default=10, 
                        help="Recording duration in seconds (default: 10)")
     parser.add_argument("--output", "-o", type=str, 
@@ -384,6 +386,9 @@ def main():
     
     args = parser.parse_args()
     
+    # Support both positional argument and --file flag
+    input_file = args.input_file or args.file
+    
     print("=== Audio to MIDI Transcriber ===")
     print("Using basic-pitch for pitch detection")
     print(f"Sample rate: {args.sample_rate} Hz")
@@ -393,11 +398,11 @@ def main():
     transcriber = AudioToMIDITranscriber(sample_rate=args.sample_rate)
     
     try:
-        if args.file:
+        if input_file:
             # Process existing file
-            print(f"Processing file: {args.file}")
+            print(f"Processing file: {input_file}")
             output_files = transcriber.transcribe_file(
-                audio_file=args.file,
+                audio_file=input_file,
                 output_midi=args.output
             )
         else:
