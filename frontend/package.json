@@ -11,12 +11,15 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.13",
+    "@tonejs/midi": "^2.0.28",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "tailwindcss": "^4.1.13"
+    "tailwindcss": "^4.1.13",
+    "tone": "^15.1.22"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@types/dom-webcodecs": "^0.1.16",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.3",

@@ -12,6 +12,8 @@ export interface CombineResult {
   success: boolean;
   message?: string;
   combinedPath?: string;
+  combinedMidiPath?: string;
+  combinedWavPath?: string;
   error?: string;
   details?: string;
 }
@@ -199,9 +201,10 @@ export const combineMidiFiles = async (midiPaths: string[]): Promise<CombineResu
   }
 };
 
-export const downloadMidiFile = async (midiPath: string) => {
+export const downloadMidiFile = async (filePath: string) => {
   try {
-    const response = await fetch(`http://localhost:3001/uploads/${midiPath}`);
+    const filename = filePath.includes('/') ? filePath : filePath; // Handle both full paths and just filenames
+    const response = await fetch(`http://localhost:3001/uploads/${filename}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -210,13 +213,13 @@ export const downloadMidiFile = async (midiPath: string) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = midiPath.split('/').pop() || 'combined_midi.mid';
+    a.download = filename.split('/').pop() || 'download';
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   } catch (error) {
-    console.error('Error downloading MIDI file:', error);
+    console.error('Error downloading file:', error);
     throw error;
   }
 };

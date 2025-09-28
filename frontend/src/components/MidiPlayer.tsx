@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import * as Tone from 'tone';
+import { Midi } from '@tonejs/midi';
 
 interface MidiPlayerProps {
   midiPath?: string;
@@ -19,67 +21,197 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const synthRef = useRef<Tone.PolySynth | null>(null);
+  const midiRef = useRef<Midi | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const isInitializedRef = useRef(false);
 
+  // Initialize Tone.js synth
   useEffect(() => {
+    const initializeSynth = async () => {
+      try {
+        // Create a polyphonic synthesizer
+        synthRef.current = new Tone.PolySynth(Tone.Synth, {
+          oscillator: {
+            type: "triangle"
+          },
+          envelope: {
+            attack: 0.02,
+            decay: 0.1,
+            sustain: 0.3,
+            release: 1
+          }
+        }).toDestination();
+
+        // Set initial volume
+        synthRef.current.volume.value = Tone.gainToDb(volume);
+      } catch (error) {
+        console.error('Error initializing synthesizer:', error);
+      }
+    };
+
+    initializeSynth();
+
     return () => {
+      // Cleanup
+      if (synthRef.current) {
+        synthRef.current.dispose();
+      }
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
   }, []);
 
+  // Load MIDI file when path changes
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
+    const loadMidiFile = async () => {
+      if (!midiPath) {
+        midiRef.current = null;
+        setDuration(0);
+        setCurrentTime(0);
+        setLoadError(null);
+        return;
+      }
+
+      setIsLoading(true);
+      setLoadError(null);
+
+      try {
+        // Construct the full URL for the MIDI file
+        // If midiPath is just a filename, prepend the uploads URL
+        const fullUrl = midiPath.startsWith('http') 
+          ? midiPath 
+          : `http://localhost:3001/uploads/${midiPath}`;
+        
+        console.log('Loading MIDI from:', fullUrl);
+        
+        // Fetch the MIDI file
+        const response = await fetch(fullUrl);
+        console.log('Response status:', response.status, response.statusText);
+        console.log('Response content-type:', response.headers.get('content-type'));
+        
+        if (!response.ok) {
+          throw new Error(`Failed to load MIDI file: ${response.statusText}`);
+        }
+
+        // Check if we received a MIDI file or HTML error page
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('text/html')) {
+          throw new Error('Received HTML instead of MIDI file. Check if the file exists on the server.');
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const midi = new Midi(arrayBuffer);
+        
+        midiRef.current = midi;
+        setDuration(midi.duration);
+        setCurrentTime(0);
+        
+        console.log('MIDI loaded successfully:', {
+          url: fullUrl,
+          duration: midi.duration,
+          tracks: midi.tracks.length,
+          name: midi.name
+        });
+      } catch (error) {
+        console.error('Error loading MIDI file:', error);
+        setLoadError(error instanceof Error ? error.message : 'Failed to load MIDI file');
+        midiRef.current = null;
+        setDuration(0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMidiFile();
+  }, [midiPath]);
+
+  // Update volume when changed
+  useEffect(() => {
+    if (synthRef.current) {
+      synthRef.current.volume.value = Tone.gainToDb(volume);
     }
   }, [volume]);
 
+  const scheduleNotes = useCallback(() => {
+    if (!midiRef.current || !synthRef.current) return;
+
+    // Clear any existing scheduled events
+    Tone.Transport.cancel();
+
+    // Schedule all notes from all tracks
+    midiRef.current.tracks.forEach((track) => {
+      track.notes.forEach((note) => {
+        Tone.Transport.schedule((time) => {
+          synthRef.current?.triggerAttackRelease(
+            note.name,
+            note.duration,
+            time,
+            note.velocity
+          );
+        }, note.time);
+      });
+    });
+  }, []);
+
   const handlePlay = async () => {
-    if (!midiPath || disabled) return;
+    if (!midiPath || disabled || !midiRef.current || !synthRef.current) return;
 
     try {
-      // For now, we'll create a simple audio element that can play the MIDI file
-      // Note: This is a simplified approach. In a production app, you might want to use
-      // a proper MIDI synthesizer library like Tone.js or similar
-      if (!audioRef.current) {
-        // Create a simple audio representation or use a placeholder
-        setIsPlaying(true);
-        setCurrentTime(0);
-        setDuration(15); // Assuming 15-second tracks
+      // Initialize audio context if needed
+      if (!isInitializedRef.current) {
+        await Tone.start();
+        isInitializedRef.current = true;
+      }
 
+      if (isPlaying) {
+        // Pause
+        Tone.Transport.pause();
+        setIsPlaying(false);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        onPause?.();
+      } else {
+        // Play
+        if (currentTime === 0) {
+          // Starting from beginning - schedule all notes
+          scheduleNotes();
+          Tone.Transport.position = 0;
+        } else {
+          // Resuming from where we paused
+          Tone.Transport.position = currentTime;
+        }
+
+        Tone.Transport.start();
+        setIsPlaying(true);
+
+        // Update progress
         intervalRef.current = setInterval(() => {
-          setCurrentTime(prev => {
-            if (prev >= 15) {
-              setIsPlaying(false);
-              if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-              }
-              return 15;
-            }
-            return prev + 0.1;
-          });
+          const position = Tone.Transport.seconds;
+          setCurrentTime(position);
+
+          if (position >= duration) {
+            handleStop();
+          }
         }, 100);
 
         onPlay?.();
       }
     } catch (error) {
       console.error('Error playing MIDI:', error);
-      alert('Failed to play MIDI file. Please try again.');
+      setLoadError('Failed to play MIDI file. Please try again.');
     }
   };
 
-  const handlePause = () => {
-    setIsPlaying(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    onPause?.();
-  };
 
   const handleStop = () => {
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
     setIsPlaying(false);
     setCurrentTime(0);
     if (intervalRef.current) {
@@ -111,6 +243,28 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center p-4 border border-gray-200 rounded-lg bg-white">
+        <div className="text-blue-500 mb-2">🎵</div>
+        <p className="text-gray-600 text-sm text-center">
+          Loading MIDI file...
+        </p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center p-4 border border-red-200 rounded-lg bg-red-50">
+        <div className="text-red-500 mb-2">⚠️</div>
+        <p className="text-red-600 text-sm text-center">
+          {loadError}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col space-y-4 p-4 border border-gray-200 rounded-lg bg-white">
       <div className="text-center">
@@ -118,6 +272,11 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
         <div className="text-sm text-gray-600">
           MIDI: {midiPath.split('/').pop()}
         </div>
+        {midiRef.current && (
+          <div className="text-xs text-gray-500 mt-1">
+            {midiRef.current.tracks.length} track(s), {formatTime(duration)} duration
+          </div>
+        )}
       </div>
 
       {/* Progress Bar */}
@@ -138,21 +297,21 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
       <div className="flex items-center justify-center space-x-4">
         <button
           onClick={handleStop}
-          disabled={disabled || currentTime === 0}
-          className="p-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+          disabled={disabled || (!isPlaying && currentTime === 0)}
+          className="p-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
           title="Stop"
         >
           ⏹️
         </button>
 
         <button
-          onClick={isPlaying ? handlePause : handlePlay}
-          disabled={disabled}
+          onClick={handlePlay}
+          disabled={disabled || !midiRef.current}
           className={`p-3 rounded-full font-semibold text-white transition-colors ${
             isPlaying
               ? 'bg-orange-600 hover:bg-orange-700'
               : 'bg-green-600 hover:bg-green-700'
-          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          } ${disabled || !midiRef.current ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {isPlaying ? '⏸️' : '▶️'}
         </button>
@@ -169,7 +328,7 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
           value={volume}
           onChange={handleVolumeChange}
           disabled={disabled}
-          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed"
         />
         <span className="text-sm text-gray-600 w-8">
           {Math.round(volume * 100)}%
@@ -177,7 +336,7 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
       </div>
 
       <div className="text-xs text-gray-500 text-center">
-        Click play to preview your MIDI conversion
+        {midiRef.current ? 'Click play to hear your MIDI file' : 'Loading MIDI data...'}
       </div>
     </div>
   );
