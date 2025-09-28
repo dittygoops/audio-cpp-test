@@ -68,47 +68,48 @@ def health_check():
 def transcribe_single():
     """
     Route for spotify_transcriber.py functionality - single audio file to MIDI conversion
-    Expects a JSON payload with audioUrl pointing to a Vercel blob storage URL
-    Downloads the audio, converts to MIDI, and returns the MIDI file directly
+    Expects a .wav audio file in the request
+    Converts to MIDI and returns the MIDI file directly
     """
     temp_audio_path = None
     midi_files_to_cleanup = []
     
     try:
-        # Get JSON payload
-        data = request.get_json()
-        if not data or 'audioUrl' not in data:
-            return jsonify({'error': 'No audioUrl provided in request body'}), 400
+        # Check if audio file was uploaded
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file provided'}), 400
         
-        audio_url = data['audioUrl']
+        audio_file = request.files['audio']
+        if audio_file.filename == '':
+            return jsonify({'error': 'No audio file selected'}), 400
         
-        print(f"Processing audio from URL: {audio_url}")
+        # Check if it's a valid audio file
+        if not audio_file.filename.lower().endswith('.wav'):
+            return jsonify({'error': 'Only .wav files are supported'}), 400
         
-        # Download the audio file from the blob URL
+        print(f"Processing audio file: {audio_file.filename}")
+        
+        # Save the uploaded file to a temporary location
         timestamp = int(time.time() * 1000)
+        temp_audio_path = os.path.join(tempfile.gettempdir(), f"{timestamp}_audio.wav")
         
         try:
-            print("Downloading audio file from blob storage...")
-            response = requests.get(audio_url, timeout=30)
-            response.raise_for_status()
+            audio_file.save(temp_audio_path)
+            print(f"Saved audio file: {temp_audio_path}")
             
-            # Determine file extension from URL or content-type
-            file_extension = '.wav'  # Default
-            if audio_url.lower().endswith(('.mp3', '.wav', '.flac', '.m4a')):
-                file_extension = audio_url[audio_url.rfind('.'):].lower()
+            # Verify file was saved and has content
+            if not os.path.exists(temp_audio_path) or os.path.getsize(temp_audio_path) == 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to save audio file or file is empty'
+                }), 400
             
-            # Save to temporary file
-            temp_audio_path = os.path.join(tempfile.gettempdir(), f"{timestamp}_audio{file_extension}")
+            print(f"Audio file size: {os.path.getsize(temp_audio_path)} bytes")
             
-            with open(temp_audio_path, 'wb') as f:
-                f.write(response.content)
-            
-            print(f"Downloaded audio file: {len(response.content)} bytes")
-            
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             return jsonify({
                 'success': False,
-                'error': 'Failed to download audio file from URL',
+                'error': 'Failed to save audio file',
                 'details': str(e)
             }), 400
         
