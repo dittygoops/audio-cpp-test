@@ -290,9 +290,31 @@ function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center space-x-3">
-                <div className="text-2xl">🎵</div>
+                <div className="relative">
+                  <svg 
+                    width="32" 
+                    height="32" 
+                    viewBox="0 0 32 32" 
+                    fill="none" 
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="text-blue-400"
+                  >
+                    <defs>
+                      <linearGradient id="waveformGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#60A5FA" stopOpacity="0.8" />
+                        <stop offset="50%" stopColor="#A855F7" stopOpacity="0.6" />
+                        <stop offset="100%" stopColor="#06B6D4" stopOpacity="0.4" />
+                      </linearGradient>
+                    </defs>
+                    {/* Waveform background with gradient */}
+                    <path 
+                      d="M4 16h2v4h-2v-4zM8 14h2v8h-2v-8zM12 12h2v12h-2v-12zM16 10h2v16h-2v-16zM20 12h2v12h-2v-12zM24 14h2v8h-2v-8zM28 16h2v4h-2v-4z" 
+                      fill="url(#waveformGradient)"
+                    />
+                  </svg>
+                </div>
                 <h1 className="text-xl font-bold text-white">
-                  Music Creation Studio
+                  YN Beats
                 </h1>
               </div>
               <div className="text-sm text-gray-300">
@@ -326,10 +348,10 @@ function App() {
           >
             {/* Layered background effects */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-600/8 via-purple-600/8 to-cyan-600/8 rounded-3xl blur-xl transform rotate-1"></div>
-            <div className="absolute inset-0 bg-gray-800/95 rounded-3xl transform -rotate-1"></div>
+            <div className="absolute inset-0 bg-gray-800/25 rounded-3xl transform -rotate-1"></div>
             
             {/* Main content */}
-            <div className="relative bg-gray-800/90 backdrop-blur-sm border border-gray-600/50 rounded-3xl p-10 shadow-2xl">
+            <div className="relative bg-gray-800/30 backdrop-blur-sm border border-gray-600/20 rounded-3xl p-10 shadow-2xl">
               {/* Subtle accent border */}
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-cyan-500/10 rounded-3xl blur-sm -z-10"></div>
               
@@ -399,7 +421,25 @@ function App() {
       </section>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gray-900">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gray-900 relative overflow-hidden">
+        {/* Sparkle Effects */}
+        {[...Array(12)].map((_, i) => (
+          <div
+            key={`sparkle-${i}`}
+            className="absolute pointer-events-none"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animation: `shootingStar ${3 + Math.random() * 4}s linear infinite`,
+              animationDelay: `${Math.random() * 8}s`
+            }}
+          >
+            <div className="w-1 h-1 bg-white rounded-full opacity-30">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent w-12 h-0.5 -translate-x-6 -translate-y-0.25 opacity-20"></div>
+            </div>
+          </div>
+        ))}
+        
         <div className="space-y-8">
 
           {/* Track List */}
@@ -407,7 +447,7 @@ function App() {
 
           {/* Combine Section */}
           {midiFiles.length > 0 && (
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-sm">
+            <div className="bg-gray-800/20 backdrop-blur-sm border border-gray-700/30 rounded-lg p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-white mb-4">
                 Combine MIDI Files
               </h3>
