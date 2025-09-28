@@ -1,0 +1,38 @@
+# Python virtual environments
+venv_310/
+.venv/
+*venv*/
+
+# Python cache and build artifacts
+__pycache__/
+**/__pycache__/**
+*.py[cod]
+*.pyo
+*.pyd
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# Local uploads and large media
+uploads/
+*.wav
+*.mp3
+*.flac
+*.aiff
+*.aif
+*.ogg
+*.m4a
+*.mid
+
+# Model and large binary weights (if any)
+*.pt
+*.onnx
+*.tflite
+*.weights
+
+# OS files
+.DS_Store
+
+# Vercel local config directory (created by `vercel link`)
+.vercel/
