@@ -8,17 +8,6 @@ export interface ConversionResult {
   details?: string;
 }
 
-export interface CombineResult {
-  success: boolean;
-  message?: string;
-  combinedPath?: string;
-  combinedMidiPath?: string;
-  combinedWavPath?: string;
-  combinedMidiBlob?: Blob;
-  combinedMidiUrl?: string;
-  error?: string;
-  details?: string;
-}
 
 // Common MIDI instruments
 export const MIDI_INSTRUMENTS = [
@@ -97,83 +86,6 @@ export const convertWavToMidi = async (audioBlob: Blob, instrument: string): Pro
   }
 };
 
-export const combineMidiFiles = async (midiFilePaths: string[]): Promise<CombineResult> => {
-  try {
-    const formData = new FormData();
-    
-    // Convert each MIDI file path to a File object and add to form data
-    for (let index = 0; index < midiFilePaths.length; index++) {
-      const midiPath = midiFilePaths[index];
-      
-      try {
-        // Fetch the MIDI file from the URL
-        let response: Response;
-        if (midiPath.startsWith('blob:') || midiPath.startsWith('http')) {
-          response = await fetch(midiPath);
-        } else {
-          response = await fetch(`http://localhost:3001/uploads/${midiPath}`);
-        }
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch MIDI file: ${response.statusText}`);
-        }
-        
-        const blob = await response.blob();
-        
-        // Create a File object from the blob
-        const file = new File([blob], `track${index}.mid`, { type: 'audio/midi' });
-        formData.append(`file${index}`, file);
-        
-        console.log(`Added MIDI file ${index}: ${file.name} (${file.size} bytes)`);
-      } catch (error) {
-        console.error(`Error fetching MIDI file ${index} (${midiPath}):`, error);
-        throw new Error(`Failed to load MIDI file ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    console.log(`Sending ${midiFilePaths.length} MIDI files to backend for combination`);
-
-    const response = await fetch(`${API_BASE_URL}/combine-midi`, {
-      method: 'POST',
-      body: formData, // Don't set Content-Type header, let browser set it with boundary
-    });
-
-    if (!response.ok) {
-      // If it's an error response, try to get JSON error details
-      try {
-        const errorData = await response.json();
-        return {
-          success: false,
-          error: errorData.error || `HTTP error! status: ${response.status}`,
-          details: errorData.details
-        };
-      } catch {
-        // If error response isn't JSON, return generic error
-        return {
-          success: false,
-          error: `HTTP error! status: ${response.status}`,
-        };
-      }
-    }
-
-    // Success - return the MIDI blob for display
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-
-    return {
-      success: true,
-      message: 'MIDI files combined successfully',
-      combinedMidiBlob: blob,
-      combinedMidiUrl: url
-    };
-  } catch (error) {
-    console.error('Error combining MIDI files:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-    };
-  }
-};
 
 export const downloadMidiFile = async (filePath: string) => {
   try {
@@ -198,18 +110,3 @@ export const downloadMidiFile = async (filePath: string) => {
   }
 };
 
-export const downloadMidiBlob = (blob: Blob, filename: string = 'combined.mid') => {
-  try {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  } catch (error) {
-    console.error('Error downloading MIDI blob:', error);
-    throw error;
-  }
-};
