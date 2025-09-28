@@ -170,7 +170,7 @@ class AudioToMIDITranscriber:
                         note.velocity = original_velocity
                     
                     # Add some natural variation to avoid robotic sound
-                    variation = random.randint(-5, 5)
+                    variation = random.randint(5, 15)
                     note.velocity = max(20, min(110, note.velocity + variation))
                     
                     note_events.append({

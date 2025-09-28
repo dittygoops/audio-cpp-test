@@ -11,7 +11,7 @@ def test_vocals_to_midi():
     """Test processing vocals-only file to MIDI"""
     
     # Input file
-    vocals_file = "Lights - Vocals Only (Acapella) _ Ellie Goulding.wav"
+    vocals_file = "bass_20250927_160637_noise_reduced (1).wav"
     
     # Check if file exists
     if not os.path.exists(vocals_file):
