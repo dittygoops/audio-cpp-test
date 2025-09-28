@@ -142,18 +142,31 @@ const InstrumentSearch: React.FC<InstrumentSearchProps> = ({
         onFocus={handleInputFocus}
         onKeyDown={handleKeyDown}
         placeholder="Search for an instrument..."
-        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+        className="w-full p-2 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-700 text-white placeholder-gray-400"
         autoComplete="off"
       />
       
-      {/* Search icon */}
-      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-        🔍
+      {/* Search icon - properly centered accounting for input padding */}
+      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
+        <svg 
+          width="16" 
+          height="16" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className="w-4 h-4 text-gray-400"
+        >
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
       </div>
 
       {/* Dropdown list */}
       {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-10 w-full mt-1 bg-gray-700 border border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
           <ul ref={listRef} className="py-1">
             {filteredInstruments.length > 0 ? (
               filteredInstruments.map((instrument, index) => (
@@ -162,24 +175,24 @@ const InstrumentSearch: React.FC<InstrumentSearchProps> = ({
                   onClick={() => selectInstrument(instrument)}
                   className={`px-3 py-2 cursor-pointer transition-colors ${
                     index === highlightedIndex
-                      ? 'bg-blue-100 text-blue-900'
-                      : 'hover:bg-gray-100'
+                      ? 'bg-blue-600 text-white'
+                      : 'hover:bg-gray-600'
                   } ${
                     instrument.value === value
-                      ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-900'
+                      ? 'bg-blue-700 text-blue-200 font-medium'
+                      : 'text-gray-200'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span>{instrument.label}</span>
                     {instrument.value === value && (
-                      <span className="text-blue-500">✓</span>
+                      <span className="text-blue-400">✓</span>
                     )}
                   </div>
                 </li>
               ))
             ) : (
-              <li className="px-3 py-2 text-gray-500 italic">
+              <li className="px-3 py-2 text-gray-400 italic">
                 No instruments found
               </li>
             )}
@@ -189,7 +202,7 @@ const InstrumentSearch: React.FC<InstrumentSearchProps> = ({
       
       {/* Selected instrument indicator */}
       {selectedInstrument && !isOpen && (
-        <div className="mt-1 text-sm text-gray-600">
+        <div className="mt-1 text-sm text-gray-400">
           Selected: {selectedInstrument.label}
         </div>
       )}

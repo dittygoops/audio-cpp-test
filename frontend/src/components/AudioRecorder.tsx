@@ -135,9 +135,9 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   if (!isPermissionGranted) {
     return (
-      <div className="flex flex-col items-center p-4 border border-red-300 rounded-lg bg-red-50">
-        <div className="text-red-600 mb-2">🎤</div>
-        <p className="text-red-700 text-sm text-center">
+      <div className="flex flex-col items-center p-4 border border-red-700 rounded-lg bg-red-900/50">
+        <div className="text-red-400 mb-2">🎤</div>
+        <p className="text-red-300 text-sm text-center">
           Microphone permission required
         </p>
         <button
@@ -153,13 +153,40 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   return (
     <div className="flex flex-col items-center space-y-4">
       <div className="text-center">
-        <div className={`text-4xl mb-2 ${isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400'}`}>
-          {isRecording ? '🔴' : '🎤'}
+        <div className={`mb-2 ${isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400'}`}>
+          {isRecording ? (
+            <svg 
+              width="48" 
+              height="48" 
+              viewBox="0 0 24 24" 
+              fill="currentColor"
+              className="mx-auto"
+            >
+              <circle cx="12" cy="12" r="8"></circle>
+            </svg>
+          ) : (
+            <svg 
+              width="48" 
+              height="48" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              className="mx-auto"
+            >
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          )}
         </div>
-        <div className="text-lg font-semibold">
+        <div className="text-lg font-semibold text-white">
           {isRecording ? 'Recording...' : 'Ready to Record'}
         </div>
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-300">
           {formatTime(timeLeft)}
         </div>
       </div>
@@ -176,7 +203,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         {isRecording ? 'Stop Recording' : 'Start Recording'}
       </button>
 
-      <div className="text-xs text-gray-500 text-center max-w-xs">
+      <div className="text-xs text-gray-400 text-center max-w-xs">
         Click "Start Recording" to begin a {recordingDuration}-second audio recording.
         The recording will automatically stop after {recordingDuration} seconds.
       </div>
