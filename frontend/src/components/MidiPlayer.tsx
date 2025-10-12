@@ -23,7 +23,7 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
-  const [isLoading, setIsLoading] = useState(false);p
+  const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const synthRef = useRef<Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler | null>(null);
