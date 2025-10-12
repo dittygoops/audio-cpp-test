@@ -130,17 +130,26 @@ class AudioToMIDITranscriber:
     def detect_pitches(self, audio_file):
         """
         Use basic-pitch to detect pitches in audio file with natural velocity preservation
-        
+        Optimized for chord detection with less choppy notes
+
         Args:
             audio_file (str): Path to audio file
-            
+
         Returns:
             tuple: (midi_data, note_events)
         """
-        print("Analyzing audio with basic-pitch...")
-        
-        # Use basic-pitch to predict MIDI
-        result = predict(audio_file)
+        print("Analyzing audio with basic-pitch (optimized for chords)...")
+
+        # Use basic-pitch to predict MIDI with parameters optimized for chord detection
+        # Lower thresholds = less aggressive note splitting = smoother sustained notes
+        result = predict(
+            audio_file,
+            onset_threshold=0.35,      # Lower than default (0.5) - less aggressive onset detection
+            frame_threshold=0.15,      # Lower than default (0.3) - sustain notes longer
+            minimum_note_length=250,   # Longer than default (127.7ms) - filter short fragments
+            melodia_trick=False,       # Disable - designed for monophonic melody, not chords
+            multiple_pitch_bends=True  # Better for polyphonic/chord content
+        )
         
         # Handle different return formats from basic-pitch
         note_events = []
@@ -210,16 +219,87 @@ class AudioToMIDITranscriber:
     def preserve_natural_timing(self, midi_data):
         """
         Preserve natural timing variations instead of strict quantization
+        DISABLED for chord detection - timing jitter breaks chord alignment
         """
-        for instrument in midi_data.instruments:
-            for note in instrument.notes:
-                # Add small random timing variations to avoid robotic feel
-                timing_variation = random.uniform(-0.02, 0.02)  # ±20ms variation
-                note.start = max(0, note.start + timing_variation)
-                note.end = max(note.start + 0.1, note.end + timing_variation)
-        
+        # DISABLED: Random timing variations desynchronize chord notes
+        # When notes should play together as a chord, adding random timing
+        # makes them sound broken/arpeggiated instead of simultaneous
+        #
+        # Original code added ±20ms jitter which is enough to ruin chord perception
+        # For chord transcription, we want notes to stay aligned as detected
+
+        # Simply return the midi_data unchanged to preserve chord alignment
         return midi_data
-    
+
+    def merge_consecutive_notes(self, midi_data, gap_threshold=0.05):
+        """
+        Merge consecutive notes of the same pitch that are close together
+        This fixes "choppy" MIDI by combining note fragments into sustained notes
+
+        Args:
+            midi_data: pretty_midi.PrettyMIDI object
+            gap_threshold: Maximum gap (in seconds) between notes to merge (default 50ms)
+
+        Returns:
+            pretty_midi.PrettyMIDI: Modified MIDI data with merged notes
+        """
+        print(f"Merging consecutive notes (gap threshold: {gap_threshold*1000:.0f}ms)...")
+
+        for instrument in midi_data.instruments:
+            if not instrument.notes:
+                continue
+
+            # Sort notes by pitch, then by start time
+            instrument.notes.sort(key=lambda n: (n.pitch, n.start))
+
+            merged_notes = []
+            notes_by_pitch = {}
+
+            # Group notes by pitch
+            for note in instrument.notes:
+                if note.pitch not in notes_by_pitch:
+                    notes_by_pitch[note.pitch] = []
+                notes_by_pitch[note.pitch].append(note)
+
+            # Merge notes for each pitch
+            original_count = len(instrument.notes)
+            for pitch, notes in notes_by_pitch.items():
+                if not notes:
+                    continue
+
+                # Start with the first note
+                current_note = notes[0]
+
+                for next_note in notes[1:]:
+                    # Calculate gap between current note end and next note start
+                    gap = next_note.start - current_note.end
+
+                    # If gap is small enough, merge the notes
+                    if gap <= gap_threshold:
+                        # Extend current note to include next note
+                        current_note.end = next_note.end
+                        # Use average velocity (or max for more dynamics)
+                        current_note.velocity = max(current_note.velocity, next_note.velocity)
+                    else:
+                        # Gap too large, save current note and start new one
+                        merged_notes.append(current_note)
+                        current_note = next_note
+
+                # Don't forget the last note
+                merged_notes.append(current_note)
+
+            # Replace notes with merged version
+            instrument.notes = merged_notes
+
+            # Sort by start time for proper playback
+            instrument.notes.sort(key=lambda n: n.start)
+
+            merged_count = len(instrument.notes)
+            notes_merged = original_count - merged_count
+            print(f"  Instrument '{instrument.name}': {original_count} notes -> {merged_count} notes ({notes_merged} merges)")
+
+        return midi_data
+
     def add_pitch_bend_from_audio(self, midi_data, audio_file):
         """
         Analyze original audio for pitch bends and add them to MIDI
@@ -314,15 +394,17 @@ class AudioToMIDITranscriber:
             
             print("\n=== Processing Noise-Reduced Audio ===")
             midi_data_clean, note_events_clean = self.detect_pitches(noise_reduced_file)
-            
-            # Step 4: Add natural variations
-            print("\n=== Adding Natural Variations ===")
+
+            # Step 4: Merge choppy notes and add natural variations
+            print("\n=== Post-Processing MIDI ===")
+            midi_data_original = self.merge_consecutive_notes(midi_data_original, gap_threshold=0.05)
             midi_data_original = self.preserve_natural_timing(midi_data_original)
             midi_data_original = self.add_pitch_bend_from_audio(midi_data_original, audio_file)
-            
+
+            midi_data_clean = self.merge_consecutive_notes(midi_data_clean, gap_threshold=0.05)
             midi_data_clean = self.preserve_natural_timing(midi_data_clean)
             midi_data_clean = self.add_pitch_bend_from_audio(midi_data_clean, noise_reduced_file)
-            
+
             # Step 5: Save MIDI files for both versions
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
@@ -382,14 +464,16 @@ class AudioToMIDITranscriber:
             print("\n=== Processing Noise-Reduced Audio ===")
             midi_data_clean, note_events_clean = self.detect_pitches(noise_reduced_file)
             
-            # Step 3: Add natural variations
-            print("\n=== Adding Natural Variations ===")
+            # Step 3: Merge choppy notes and add natural variations
+            print("\n=== Post-Processing MIDI ===")
+            midi_data_original = self.merge_consecutive_notes(midi_data_original, gap_threshold=0.05)
             midi_data_original = self.preserve_natural_timing(midi_data_original)
             midi_data_original = self.add_pitch_bend_from_audio(midi_data_original, audio_file)
-            
+
+            midi_data_clean = self.merge_consecutive_notes(midi_data_clean, gap_threshold=0.05)
             midi_data_clean = self.preserve_natural_timing(midi_data_clean)
             midi_data_clean = self.add_pitch_bend_from_audio(midi_data_clean, noise_reduced_file)
-            
+
             # Step 3.5: Set instrument if specified
             if instrument_name:
                 print(f"\n=== Setting Instrument: {instrument_name} ===")
