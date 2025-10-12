@@ -23,29 +23,54 @@ const MidiPlayer: React.FC<MidiPlayerProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);p
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const synthRef = useRef<Tone.PolySynth | Tone.NoiseSynth | null>(null);
-  const multiTrackSynthsRef = useRef<(Tone.PolySynth | Tone.NoiseSynth)[]>([]);
+  const synthRef = useRef<Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler | null>(null);
+  const multiTrackSynthsRef = useRef<(Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler)[]>([]);
   const midiRef = useRef<Midi | null>(null);
   const intervalRef = useRef<number | null>(null);
   const isInitializedRef = useRef(false);
 
 // Get instrument-specific synthesizer configuration
-const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.NoiseSynth => {
+const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler => {
   switch (instrumentValue) {
-    case '0': // Piano - Rich harmonics with quick attack
-      return new Tone.PolySynth(Tone.Synth, {
-        oscillator: { 
-          type: "fatsawtooth"
+    case '0': // Piano - Using Tone.Sampler for classic piano sound
+      return new Tone.Sampler({
+        urls: {
+          A0: "A0.mp3",
+          C1: "C1.mp3", 
+          "D#1": "Ds1.mp3",
+          "F#1": "Fs1.mp3",
+          A1: "A1.mp3",
+          C2: "C2.mp3",
+          "D#2": "Ds2.mp3",
+          "F#2": "Fs2.mp3",
+          A2: "A2.mp3",
+          C3: "C3.mp3",
+          "D#3": "Ds3.mp3",
+          "F#3": "Fs3.mp3",
+          A3: "A3.mp3",
+          C4: "C4.mp3",
+          "D#4": "Ds4.mp3",
+          "F#4": "Fs4.mp3",
+          A4: "A4.mp3",
+          C5: "C5.mp3",
+          "D#5": "Ds5.mp3",
+          "F#5": "Fs5.mp3",
+          A5: "A5.mp3",
+          C6: "C6.mp3",
+          "D#6": "Ds6.mp3",
+          "F#6": "Fs6.mp3",
+          A6: "A6.mp3",
+          C7: "C7.mp3",
+          "D#7": "Ds7.mp3",
+          "F#7": "Fs7.mp3",
+          A7: "A7.mp3",
+          C8: "C8.mp3"
         },
-        envelope: { 
-          attack: 0.005, 
-          decay: 0.3, 
-          sustain: 0.2, 
-          release: 2.0 
-        }
+        release: 1,
+        baseUrl: "https://tonejs.github.io/audio/salamander/"
       }).toDestination();
     
     case '24': // Guitar - Plucky attack with harmonic richness
@@ -240,8 +265,8 @@ const createInstrumentSynth = (instrumentValue: string): Tone.PolySynth | Tone.N
 };
 
 // Create synthesizers for multi-track MIDI files
-const createMultiTrackSynths = (midi: Midi): (Tone.PolySynth | Tone.NoiseSynth)[] => {
-  const synths: (Tone.PolySynth | Tone.NoiseSynth)[] = [];
+const createMultiTrackSynths = (midi: Midi): (Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler)[] => {
+  const synths: (Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler)[] = [];
   
   midi.tracks.forEach((track, index) => {
     // If track has notes, create a synthesizer for it
@@ -442,8 +467,11 @@ const createMultiTrackSynths = (midi: Midi): (Tone.PolySynth | Tone.NoiseSynth)[
                 // Check if it's a NoiseSynth (for drums)
                 if (synth instanceof Tone.NoiseSynth) {
                   synth.triggerAttackRelease(note.duration, time, note.velocity);
+                } else if (synth instanceof Tone.Sampler) {
+                  // Sampler for piano
+                  synth.triggerAttackRelease(note.name, note.duration, time, note.velocity);
                 } else {
-                  // PolySynth for melodic instruments
+                  // PolySynth for other melodic instruments
                   (synth as Tone.PolySynth).triggerAttackRelease(
                     note.name,
                     note.duration,
@@ -471,6 +499,9 @@ const createMultiTrackSynths = (midi: Midi): (Tone.PolySynth | Tone.NoiseSynth)[
               if (instrument === '128') {
                 // For drums, just trigger the noise
                 (synthRef.current as Tone.NoiseSynth).triggerAttackRelease(note.duration, time, note.velocity);
+              } else if (synthRef.current instanceof Tone.Sampler) {
+                // For piano sampler
+                (synthRef.current as Tone.Sampler).triggerAttackRelease(note.name, note.duration, time, note.velocity);
               } else {
                 // For all other instruments, use normal note triggering
                 (synthRef.current as Tone.PolySynth).triggerAttackRelease(

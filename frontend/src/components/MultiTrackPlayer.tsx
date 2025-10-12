@@ -65,7 +65,7 @@ const audioBufferToWav = (buffer: AudioBuffer): Blob => {
 
 interface Track {
   id: string;
-  synth: Tone.PolySynth | Tone.NoiseSynth | null;
+  synth: Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler | null;
   part: Tone.Part | null;
   notes: any[];
   instrument: string;
@@ -188,12 +188,12 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
     return instruments[index % instruments.length];
   };
 
-  const createSynthesizer = (track: Track): Tone.PolySynth | Tone.NoiseSynth => {
+  const createSynthesizer = (track: Track): Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler => {
     if (!masterGainRef.current) {
       throw new Error('Master gain not initialized');
     }
 
-    let synth: Tone.PolySynth | Tone.NoiseSynth;
+    let synth: Tone.PolySynth | Tone.NoiseSynth | Tone.Sampler;
 
     // Normalize instrument name to lowercase for comparison
     const instrument = track.instrument.toLowerCase();
@@ -202,11 +202,43 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
     
     switch (instrument) {
       case 'piano':
-        synth = new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: "fatsawtooth" },
-          envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 2.0 }
+        synth = new Tone.Sampler({
+          urls: {
+            A0: "A0.mp3",
+            C1: "C1.mp3", 
+            "D#1": "Ds1.mp3",
+            "F#1": "Fs1.mp3",
+            A1: "A1.mp3",
+            C2: "C2.mp3",
+            "D#2": "Ds2.mp3",
+            "F#2": "Fs2.mp3",
+            A2: "A2.mp3",
+            C3: "C3.mp3",
+            "D#3": "Ds3.mp3",
+            "F#3": "Fs3.mp3",
+            A3: "A3.mp3",
+            C4: "C4.mp3",
+            "D#4": "Ds4.mp3",
+            "F#4": "Fs4.mp3",
+            A4: "A4.mp3",
+            C5: "C5.mp3",
+            "D#5": "Ds5.mp3",
+            "F#5": "Fs5.mp3",
+            A5: "A5.mp3",
+            C6: "C6.mp3",
+            "D#6": "Ds6.mp3",
+            "F#6": "Fs6.mp3",
+            A6: "A6.mp3",
+            C7: "C7.mp3",
+            "D#7": "Ds7.mp3",
+            "F#7": "Fs7.mp3",
+            A7: "A7.mp3",
+            C8: "C8.mp3"
+          },
+          release: 1,
+          baseUrl: "https://tonejs.github.io/audio/salamander/"
         }).connect(masterGainRef.current);
-        console.log(`✓ Created Piano synthesizer for track ${track.id}`);
+        console.log(`✓ Created Piano sampler for track ${track.id}`);
         break;
       case 'guitar':
         synth = new Tone.PolySynth(Tone.FMSynth, {
@@ -330,8 +362,15 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
             (track.synth as Tone.NoiseSynth).triggerAttackRelease(noteData.duration, time, noteData.velocity);
           }
         }, notes.map(note => [note.time, note]));
+      } else if (track.synth instanceof Tone.Sampler) {
+        // For piano sampler
+        track.part = new Tone.Part((time, noteData) => {
+          if (track.synth && !track.muted) {
+            (track.synth as Tone.Sampler).triggerAttackRelease(noteData.note, noteData.duration, time, noteData.velocity);
+          }
+        }, notes.map(note => [note.time, note]));
       } else {
-        // For melodic instruments
+        // For other melodic instruments
         track.part = new Tone.Part((time, noteData) => {
           if (track.synth && !track.muted) {
             (track.synth as Tone.PolySynth).triggerAttackRelease(noteData.note, noteData.duration, time, noteData.velocity);
@@ -602,6 +641,7 @@ const MultiTrackPlayer: React.FC<MultiTrackPlayerProps> = ({ midiFiles, trackInf
               const instrument = track.instrument.toLowerCase();
               switch (instrument) {
                 case 'piano':
+                  // For piano, we'll use a more complex waveform to simulate the sampler
                   oscillator.type = 'triangle';
                   break;
                 case 'guitar':
